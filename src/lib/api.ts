@@ -1,0 +1,162 @@
+import axios, { AxiosError } from 'axios'
+
+const BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api'
+
+export const api = axios.create({ baseURL: BASE, timeout: 15000 })
+
+api.interceptors.request.use(cfg => {
+  const token = typeof window !== 'undefined' ? localStorage.getItem('accessToken') : null
+  if (token) cfg.headers.Authorization = `Bearer ${token}`
+  return cfg
+})
+
+api.interceptors.response.use(
+  r => r,
+  async (err: AxiosError) => {
+    if (err.response?.status === 401 && typeof window !== 'undefined') {
+      const refresh = localStorage.getItem('refreshToken')
+      if (refresh) {
+        try {
+          const { data } = await axios.post(`${BASE}/auth/refresh`, { refreshToken: refresh })
+          localStorage.setItem('accessToken', data.data.accessToken)
+          localStorage.setItem('refreshToken', data.data.refreshToken)
+          err.config!.headers!.Authorization = `Bearer ${data.data.accessToken}`
+          return api(err.config!)
+        } catch {
+          localStorage.clear()
+          window.location.href = '/auth'
+        }
+      } else {
+        localStorage.clear()
+        window.location.href = '/auth'
+      }
+    }
+    return Promise.reject(err)
+  }
+)
+
+// ── Auth ────────────────────────────────────────────────────────────────────
+export const authApi = {
+  sendOtp: (email: string) => api.post('/auth/send-otp', { email }),
+  verifyOtp: (email: string, otp: string) => api.post('/auth/verify-otp', { email, otp }),
+  register: (data: Record<string, unknown>) => api.post('/auth/register', data),
+  refresh: (refreshToken: string) => api.post('/auth/refresh', { refreshToken }),
+  logout: (refreshToken: string) => api.post('/auth/logout', { refreshToken }),
+  logoutAll: () => api.post('/auth/logout-all'),
+}
+
+// ── Users ───────────────────────────────────────────────────────────────────
+export const usersApi = {
+  me: () => api.get('/users/me'),
+  updateMe: (data: Record<string, unknown>) => api.patch('/users/me', data),
+  stats: () => api.get('/users/me/stats'),
+  notifications: (page = 1) => api.get(`/users/me/notifications?page=${page}`),
+  publicProfile: (id: string) => api.get(`/users/${id}`),
+}
+
+// ── Orders ──────────────────────────────────────────────────────────────────
+export const ordersApi = {
+  create: (data: Record<string, unknown>) => api.post('/orders', data),
+  list: (role: 'client' | 'rider' = 'client', status?: string, page = 1) =>
+    api.get(`/orders?role=${role}${status ? `&status=${status}` : ''}&page=${page}`),
+  available: (params?: Record<string, unknown>) => api.get('/orders/available', { params }),
+  getById: (id: string) => api.get(`/orders/${id}`),
+  accept: (id: string, declaredEtaMinutes: number) => api.post(`/orders/${id}/accept`, { declaredEtaMinutes }),
+  leaving: (id: string) => api.post(`/orders/${id}/leaving`),
+  atShop: (id: string) => api.post(`/orders/${id}/at-shop`),
+  itemPurchased: (id: string, purchasedPhotoUrl: string, actualPrice: number) =>
+    api.post(`/orders/${id}/item-purchased`, { purchasedPhotoUrl, actualPrice }),
+  approvePhoto: (id: string) => api.post(`/orders/${id}/approve-photo`),
+  rejectPhoto: (id: string, reason: string) => api.post(`/orders/${id}/reject-photo`, { reason }),
+  itemNotFound: (id: string) => api.post(`/orders/${id}/item-not-found`),
+  arrived: (id: string) => api.post(`/orders/${id}/arrived`),
+  verifyOtp: (id: string, otp: string) => api.post(`/orders/${id}/verify-otp`, { otp }),
+  cancel: (id: string, reason: string) => api.post(`/orders/${id}/cancel`, { reason }),
+}
+
+// ── Payments ────────────────────────────────────────────────────────────────
+export const paymentsApi = {
+  createIntent: (orderId: string) => api.post('/payments/create-intent', { orderId }),
+  getByOrder: (orderId: string) => api.get(`/payments/order/${orderId}`),
+}
+
+// ── Upload ──────────────────────────────────────────────────────────────────
+export const uploadApi = {
+  profilePhoto: (file: File) => {
+    const fd = new FormData(); fd.append('file', file)
+    return api.post('/upload/profile-photo', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  orderItemPhoto: (file: File, orderId: string) => {
+    const fd = new FormData(); fd.append('file', file); fd.append('orderId', orderId)
+    return api.post('/upload/order-item-photo', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  chatPhoto: (file: File, orderId: string, caption?: string) => {
+    const fd = new FormData(); fd.append('file', file); fd.append('orderId', orderId)
+    if (caption) fd.append('caption', caption)
+    return api.post('/upload/chat-photo', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  complaintEvidence: (files: File[], orderId: string) => {
+    const fd = new FormData(); files.forEach(f => fd.append('files', f)); fd.append('orderId', orderId)
+    return api.post('/upload/complaint-evidence', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+  verificationDoc: (file: File, docNumber: 1 | 2) => {
+    const fd = new FormData(); fd.append('file', file); fd.append('docNumber', String(docNumber))
+    return api.post('/upload/verification-doc', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+  },
+}
+
+// ── Chat ────────────────────────────────────────────────────────────────────
+export const chatApi = {
+  history: (orderId: string, page = 1) => api.get(`/chat/${orderId}?page=${page}`),
+}
+
+// ── Ratings ─────────────────────────────────────────────────────────────────
+export const ratingsApi = {
+  submit: (orderId: string, data: Record<string, unknown>) => api.post(`/ratings/${orderId}`, data),
+  getUserRatings: (userId: string) => api.get(`/ratings/user/${userId}`),
+}
+
+// ── Complaints ───────────────────────────────────────────────────────────────
+export const complaintsApi = {
+  create: (data: Record<string, unknown>) => api.post('/complaints', data),
+  mine: () => api.get('/complaints/me'),
+  getById: (id: string) => api.get(`/complaints/${id}`),
+}
+
+// ── Vendors ──────────────────────────────────────────────────────────────────
+export const vendorsApi = {
+  register: (data: Record<string, unknown>) => api.post('/vendors/register', data),
+  list: (category?: string) => api.get('/vendors', { params: category ? { category } : {} }),
+  getById: (id: string) => api.get(`/vendors/${id}`),
+}
+
+// ── Tracking ─────────────────────────────────────────────────────────────────
+export const trackingApi = {
+  getLocation: (orderId: string) => api.get(`/tracking/${orderId}`),
+}
+
+// ── Admin ────────────────────────────────────────────────────────────────────
+export const adminApi = {
+  dashboard: () => api.get('/admin/dashboard'),
+  users: (params?: Record<string, unknown>) => api.get('/admin/users', { params }),
+  getUserDetail: (id: string) => api.get(`/admin/users/${id}`),
+  issueStrike: (id: string, data: Record<string, unknown>) => api.post(`/admin/users/${id}/strike`, data),
+  banUser: (id: string, permanent: boolean, days?: number) => api.post(`/admin/users/${id}/ban`, { permanent, days }),
+  unbanUser: (id: string) => api.post(`/admin/users/${id}/unban`),
+  orders: (params?: Record<string, unknown>) => api.get('/admin/orders', { params }),
+  getOrderDetail: (id: string) => api.get(`/admin/orders/${id}`),
+  overrideStatus: (id: string, status: string) => api.patch(`/admin/orders/${id}/status`, { status }),
+  refund: (id: string) => api.post(`/admin/orders/${id}/refund`),
+  complaints: (params?: Record<string, unknown>) => api.get('/admin/complaints', { params }),
+  resolveComplaint: (id: string, data: Record<string, unknown>) => api.patch(`/admin/complaints/${id}`, data),
+  pendingVendors: () => api.get('/admin/vendors/pending'),
+  verifyVendor: (id: string) => api.post(`/admin/vendors/${id}/verify`),
+  rejectVendor: (id: string) => api.post(`/admin/vendors/${id}/reject`),
+  revenue: (period: string) => api.get(`/admin/revenue?period=${period}`),
+}
+
+export const getErrorMessage = (err: unknown): string => {
+  if (axios.isAxiosError(err)) return err.response?.data?.message || 'Something went wrong'
+  if (err instanceof Error) return err.message
+  return 'Unknown error'
+}
