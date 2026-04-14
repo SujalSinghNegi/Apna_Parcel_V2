@@ -161,8 +161,8 @@ export default function Dashboard() {
   // Show full skeleton while loading for the first time
   if (loading) return <DashboardSkeleton />
 
-  const limit = TRUST_LEVEL_LIMITS[user.trustLevel]
-  const trustName = TRUST_LEVEL_NAMES[user.trustLevel]
+  const limit = TRUST_LEVEL_LIMITS[user.trustLevel as keyof typeof TRUST_LEVEL_LIMITS]
+  const trustName = TRUST_LEVEL_NAMES[user.trustLevel as keyof typeof TRUST_LEVEL_NAMES]
   const greeting = () => {
     const hour = new Date().getHours()
     if (hour < 12) return 'Good Morning'

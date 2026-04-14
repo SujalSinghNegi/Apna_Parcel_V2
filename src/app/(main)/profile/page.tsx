@@ -49,7 +49,22 @@ export default function ProfilePage() {
     finally { setUploading(false) }
   }
 
-  if (!user) return null
+  if (!user) return (
+    <div className="page-container max-w-2xl mx-auto space-y-5">
+      <div className="bg-white rounded-2xl p-6 text-center space-y-3">
+        <div className="w-20 h-20 rounded-full bg-gray-100 animate-pulse mx-auto" />
+        <div className="h-5 w-36 bg-gray-100 rounded-lg animate-pulse mx-auto" />
+        <div className="h-4 w-48 bg-gray-100 rounded-lg animate-pulse mx-auto" />
+      </div>
+      <div className="bg-white rounded-2xl p-4 space-y-2">
+        <div className="h-4 w-32 bg-gray-100 rounded animate-pulse" />
+        <div className="h-2 w-full bg-gray-100 rounded-full animate-pulse" />
+      </div>
+      <div className="grid grid-cols-2 gap-3">
+        {[1,2].map(i => <div key={i} className="bg-white rounded-2xl p-4 h-32 animate-pulse" />)}
+      </div>
+    </div>
+  )
   const tc = TRUST_COLORS[user.trustLevel]
   const limit = TRUST_LEVEL_LIMITS[user.trustLevel]
   const nextLevel = user.trustLevel === 'LEVEL_1' ? 5 : user.trustLevel === 'LEVEL_2' ? 15 : user.trustLevel === 'LEVEL_3' ? 30 : null

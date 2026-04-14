@@ -7,6 +7,7 @@ import { initSocket } from "@/lib/socket";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { Package, Mail, Lock, User as UserIcon, ChevronRight, ArrowLeft, Sparkles, GraduationCap, MapPin, Briefcase } from "lucide-react";
+import { getErrorMessage } from "@/lib/api";
 
 type Step = "email" | "otp" | "register";
 
@@ -32,7 +33,7 @@ export default function AuthPage() {
       await api.post("/auth/send-otp", { email });
       toast.success("OTP sent to your email!");
       setStep("otp");
-    } catch { } finally { setLoading(false); }
+    } catch (e) { toast.error(getErrorMessage(e)); } finally { setLoading(false); }
   };
 
   const verifyOtp = async (e: React.FormEvent) => {
@@ -50,7 +51,7 @@ export default function AuthPage() {
         toast.success("Welcome back, " + user.name + "!");
         router.push("/dashboard");
       }
-    } catch { } finally { setLoading(false); }
+    } catch (e) { toast.error(getErrorMessage(e)); } finally { setLoading(false); }
   };
 
   const register = async (e: React.FormEvent) => {
@@ -66,7 +67,7 @@ export default function AuthPage() {
       initSocket(accessToken);
       toast.success("Welcome to ApnaParcel, " + user.name + "!");
       router.push("/dashboard");
-    } catch { } finally { setLoading(false); }
+    } catch (e) { toast.error(getErrorMessage(e)); } finally { setLoading(false); }
   };
 
   const userTypeOptions = [

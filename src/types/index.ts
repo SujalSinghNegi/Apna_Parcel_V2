@@ -1,6 +1,6 @@
 export type UserType = 'STUDENT' | 'LOCAL_PERSON' | 'STAFF_FACULTY';
 export type TrustLevel = 'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3' | 'LEVEL_4';
-export type OrderStatus = 'PENDING' | 'ACCEPTED' | 'RIDER_LEFT' | 'AT_SHOP' | 'ITEM_PURCHASED' | 'PHOTO_APPROVED' | 'PAID' | 'PAID' | 'DELIVERING' | 'ARRIVED' | 'DELIVERED' | 'CANCELLED' | 'DISPUTED' | 'ITEM_NOT_FOUND';
+export type OrderStatus = 'PENDING' | 'ACCEPTED' | 'PAID' | 'RIDER_LEFT' | 'AT_SHOP' | 'ITEM_PURCHASED' | 'PHOTO_APPROVED' | 'DELIVERING' | 'ARRIVED' | 'DELIVERED' | 'CANCELLED' | 'DISPUTED' | 'ITEM_NOT_FOUND';
 export type ShopMode = 'SINGLE_SHOP' | 'MULTIPLE_SHOPS' | 'ENTIRE_AREA' | 'URGENT';
 export type PaymentStatus = 'PENDING' | 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED' | 'PARTIALLY_REFUNDED' | 'FAILED' | 'CANCELLED';
 export type ComplaintCategory = 'WRONG_ITEM' | 'ITEM_DAMAGED' | 'RIDER_MISBEHAVIOUR' | 'PAYMENT_ISSUE' | 'REFUND_NOT_RECEIVED' | 'OTHER';
@@ -36,7 +36,7 @@ export interface Order {
   baseFee: number; weightFee: number; distanceFee: number;
   modeFee: number; deliveryFee: number; platformFee: number;
   tip: number; totalAmount: number; weightKg: number; distanceKm: number;
-  status: OrderStatus; purchasedPhotoUrl?: string; purchasedPhotoUrls?: string[]; purchasedPhotoUrls?: string[]; photoApproved?: boolean;
+  status: OrderStatus; purchasedPhotoUrl?: string; purchasedPhotoUrls?: string[]; photoApproved?: boolean;
   declaredEtaMinutes?: number; riderAcceptedAt?: string; riderLeftAt?: string;
   arrivedAt?: string; deliveredAt?: string; cancelledAt?: string;
   cancelReason?: string; cancelledBy?: string; travelCompensation?: number;
@@ -71,6 +71,7 @@ export interface Complaint {
   category: ComplaintCategory; description: string;
   evidenceUrl?: string; status: ComplaintStatus;
   adminNotes?: string; resolvedAt?: string; createdAt: string;
+  raisedBy?: { name: string; email: string };
   order?: { itemName: string; status: OrderStatus };
 }
 
@@ -110,8 +111,8 @@ export const TRUST_LEVEL_NAMES: Record<TrustLevel, string> = {
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   PENDING: 'Searching for Rider', ACCEPTED: 'Rider Found',
   RIDER_LEFT: 'Rider On The Way', AT_SHOP: 'At Shop',
-  ITEM_PURCHASED: 'Photo Sent', PHOTO_APPROVED: 'Awaiting Payment',
-  PAID: 'Payment Received', DELIVERING: 'Delivering', ARRIVED: 'Rider Arrived',
+  ITEM_PURCHASED: 'Photo Sent', PHOTO_APPROVED: 'Photo Verified',
+  PAID: 'Payment Done', DELIVERING: 'Delivering', ARRIVED: 'Rider Arrived',
   DELIVERED: 'Delivered', CANCELLED: 'Cancelled',
   DISPUTED: 'Under Review', ITEM_NOT_FOUND: 'Item Not Found'
 };

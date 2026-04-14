@@ -233,10 +233,10 @@ export default function RiderPage() {
 
                         <div className="flex items-center justify-between bg-gray-50 rounded-xl p-3">
                           <div className="flex items-center gap-2.5">
-                            <Avatar src={order.client.profilePhoto} name={order.client.name} size="sm" />
+                            <Avatar src={order.client?.profilePhoto} name={order.client?.name || 'User'} size="sm" />
                             <div>
-                              <p className="text-xs font-bold text-navy">{order.client.name}</p>
-                              <TrustBadge level={order.client.trustLevel} />
+                              <p className="text-xs font-bold text-navy">{order.client?.name}</p>
+                              <TrustBadge level={order.client?.trustLevel || 'LEVEL_1'} />
                             </div>
                           </div>
                           <Button size="sm" onClick={() => setShowAccept(order)}
@@ -268,7 +268,7 @@ export default function RiderPage() {
           <div className="space-y-5">
             <div className="bg-gradient-to-br from-gray-50 to-stone-50 rounded-2xl p-5">
               <h3 className="font-extrabold text-navy text-lg">{showAccept.itemName}</h3>
-              <p className="text-sm text-gray-600 mt-1">Client: <span className="font-semibold text-navy">{showAccept.client.name}</span></p>
+              <p className="text-sm text-gray-600 mt-1">Client: <span className="font-semibold text-navy">{showAccept.client?.name}</span></p>
               <div className="grid grid-cols-2 gap-3 mt-4">
                 <div className="bg-white rounded-xl p-3 text-center border border-gray-100">
                   <p className="text-[11px] text-gray-400 font-medium">You spend</p>
