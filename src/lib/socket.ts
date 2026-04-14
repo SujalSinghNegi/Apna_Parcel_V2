@@ -38,6 +38,7 @@ export const EVENTS = {
   RIDER_ARRIVED: 'rider:arrived',
   ORDER_DELIVERED: 'order:delivered',
   ORDER_CANCELLED: 'order:cancelled',
+  ORDER_OTP: 'order:otp',
   MESSAGE_RECEIVE: 'chat:message:receive',
   NOTIFICATION: 'notification',
   ERROR: 'error',

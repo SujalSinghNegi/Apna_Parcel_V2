@@ -1,7 +1,8 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { ordersApi, getErrorMessage } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
+import { initSocket, EVENTS } from '@/lib/socket'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { TrustBadge } from '@/components/ui/Badge'
@@ -22,7 +23,7 @@ const SHOP_MODE_LABELS: Record<string, { label: string; emoji: string; color: st
 }
 
 export default function RiderPage() {
-  const { user } = useAuthStore()
+  const { user, accessToken } = useAuthStore() as any
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [accepting, setAccepting] = useState('')
@@ -30,7 +31,7 @@ export default function RiderPage() {
   const [etaMinutes, setEtaMinutes] = useState('60')
   const [filters, setFilters] = useState({ maxWeightKg: '', maxPrice: '', shopMode: '' })
 
-  const fetchAvailable = async () => {
+  const fetchAvailable = useCallback(async () => {
     setLoading(true)
     try {
       const params: Record<string, any> = {}
@@ -41,9 +42,24 @@ export default function RiderPage() {
       setOrders(data.data || [])
     } catch (e) { toast.error(getErrorMessage(e)) }
     finally { setLoading(false) }
-  }
+  }, [filters])
 
-  useEffect(() => { fetchAvailable() }, [])
+  useEffect(() => { fetchAvailable() }, [fetchAvailable])
+
+  // Real-time: refresh available orders when new orders or cancellations happen
+  useEffect(() => {
+    if (!accessToken) return
+    const sock = initSocket(accessToken)
+
+    const refresh = () => fetchAvailable()
+    sock.on(EVENTS.NOTIFICATION, refresh)
+    sock.on(EVENTS.ORDER_CANCELLED, refresh)
+
+    return () => {
+      sock.off(EVENTS.NOTIFICATION, refresh)
+      sock.off(EVENTS.ORDER_CANCELLED, refresh)
+    }
+  }, [accessToken, fetchAvailable])
 
   const handleAccept = async () => {
     if (!showAccept) return

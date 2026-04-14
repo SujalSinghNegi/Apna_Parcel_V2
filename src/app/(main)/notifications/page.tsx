@@ -1,6 +1,8 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { usersApi } from '@/lib/api'
+import { useAuthStore } from '@/store/auth'
+import { initSocket, EVENTS } from '@/lib/socket'
 import { Notification } from '@/types'
 import { Card, CardContent } from '@/components/ui/Card'
 import { fmt, cn } from '@/lib/utils'
@@ -22,12 +24,27 @@ const ICON_MAP: Record<string, { icon: React.ElementType; color: string; bg: str
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const { accessToken } = useAuthStore() as any
 
-  useEffect(() => {
+  const fetchNotifications = useCallback(() => {
     usersApi.notifications(1)
       .then(r => setNotifications(r.data.data || []))
       .finally(() => setLoading(false))
   }, [])
+
+  useEffect(() => { fetchNotifications() }, [fetchNotifications])
+
+  // Real-time: listen for new notifications via socket
+  useEffect(() => {
+    if (!accessToken) return
+    const sock = initSocket(accessToken)
+
+    sock.on(EVENTS.NOTIFICATION, (notification: Notification) => {
+      setNotifications(prev => [notification, ...prev])
+    })
+
+    return () => { sock.off(EVENTS.NOTIFICATION) }
+  }, [accessToken])
 
   return (
     <div className="page-container max-w-2xl mx-auto space-y-5 animate-fade-in">

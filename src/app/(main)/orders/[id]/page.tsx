@@ -98,9 +98,44 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     const sock = initSocket(accessToken)
     joinOrderRoom(id)
 
+    // ── Real-time status updates — refetch full order on any status change ──
     sock.on(EVENTS.ORDER_STATUS, ({ status }: any) => {
       setOrder(p => p ? { ...p, status } : p)
       toast.success(`Status: ${status.replace(/_/g, ' ')}`)
+      fetchOrder() // refetch full order data for accurate state
+    })
+
+    sock.on(EVENTS.ORDER_ACCEPTED, () => {
+      toast.success('A rider has accepted your order!')
+      fetchOrder()
+    })
+
+    sock.on(EVENTS.RIDER_LEFT, () => {
+      toast('Rider is on the way! 🚴', { icon: '🛵' })
+      fetchOrder()
+    })
+
+    sock.on(EVENTS.RIDER_ARRIVED, () => {
+      toast.success('Rider has arrived! Check your OTP.')
+      fetchOrder()
+    })
+
+    sock.on(EVENTS.ORDER_DELIVERED, () => {
+      toast.success('Order delivered! 🎉')
+      fetchOrder()
+    })
+
+    sock.on(EVENTS.ORDER_CANCELLED, () => {
+      toast.error('Order has been cancelled')
+      fetchOrder()
+    })
+
+    // ── In-app OTP delivery (sent only to client's personal room) ───────────
+    sock.on(EVENTS.ORDER_OTP, ({ otp }: any) => {
+      if (otp) {
+        setOrder(p => p ? { ...p, deliveryOtp: otp } : p)
+        toast.success(`Your delivery OTP is ${otp}`, { duration: 15000 })
+      }
     })
 
     sock.on(EVENTS.MESSAGE_RECEIVE, (msg: Message) => {
@@ -127,6 +162,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     return () => {
       leaveOrderRoom(id)
       sock.off(EVENTS.ORDER_STATUS)
+      sock.off(EVENTS.ORDER_ACCEPTED)
+      sock.off(EVENTS.RIDER_LEFT)
+      sock.off(EVENTS.RIDER_ARRIVED)
+      sock.off(EVENTS.ORDER_DELIVERED)
+      sock.off(EVENTS.ORDER_CANCELLED)
+      sock.off(EVENTS.ORDER_OTP)
       sock.off(EVENTS.MESSAGE_RECEIVE)
       sock.off(EVENTS.RIDER_LOCATION)
     }
@@ -161,8 +202,11 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     try {
       await paymentsApi.confirmPayment(id)
       await ordersApi.markPaid(id)
-    } catch {}
-    toast.success('Payment done! Rider will now purchase the item and deliver it to you.')
+      toast.success('Payment done! Rider will now purchase the item and deliver it to you.')
+    } catch (e) {
+      console.error('markPaid error:', e)
+      toast.error(getErrorMessage(e))
+    }
     await fetchOrder()
   }
 
@@ -312,15 +356,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       <div className="space-y-2">
         {isClient && (
           <>
-            {/* ACCEPTED: client pays now */}
+            {/* ACCEPTED: client pays now (only if not already paid) */}
             {order.status === 'ACCEPTED' && !order.payment?.status?.match(/AUTHORIZED|CAPTURED/) && (
               <Button className="w-full" size="lg" onClick={handlePay} loading={actionLoading === 'pay'}>
                 💳 Pay {fmt.currency(order.totalAmount)} to Confirm
               </Button>
             )}
 
-            {/* PAID: payment done, rider will go to shop */}
-            {order.status === 'PAID' && (
+            {/* ACCEPTED but payment done, or PAID status — show payment confirmed */}
+            {((order.status === 'ACCEPTED' && order.payment?.status?.match(/AUTHORIZED|CAPTURED/)) || order.status === 'PAID') && (
               <Card className="border-green-200 bg-green-50">
                 <CardContent className="py-3 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
@@ -358,8 +402,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
         {isRider && (
           <>
-            {/* ACCEPTED: waiting for client payment */}
-            {order.status === 'ACCEPTED' && (
+            {/* ACCEPTED: waiting for client payment (only if not yet paid) */}
+            {order.status === 'ACCEPTED' && !order.payment?.status?.match(/AUTHORIZED|CAPTURED/) && (
               <Card className="border-amber-200 bg-amber-50">
                 <CardContent className="py-3 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
@@ -368,8 +412,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </Card>
             )}
 
-            {/* PAID: payment received, rider can leave to shop */}
-            {order.status === 'PAID' && (
+            {/* ACCEPTED with payment done, or PAID — rider can leave */}
+            {((order.status === 'ACCEPTED' && order.payment?.status?.match(/AUTHORIZED|CAPTURED/)) || order.status === 'PAID') && (
               <div className="space-y-2">
                 <Card className="border-green-200 bg-green-50">
                   <CardContent className="py-3 flex items-center gap-2">
@@ -405,7 +449,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </>
         )}
 
-        {['PENDING', 'ACCEPTED'].includes(order.status) && (
+        {['PENDING', 'ACCEPTED'].includes(order.status) && !order.payment?.status?.match(/AUTHORIZED|CAPTURED/) && (
           <Button variant="ghost" className="w-full text-red-600 hover:bg-red-50" onClick={() => setShowCancel(true)}>
             Cancel Order
           </Button>
@@ -490,13 +534,25 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       </Modal>
 
-      <Modal open={showOtp} onClose={() => setShowOtp(false)} title={isClient ? 'Share OTP with Rider' : 'Enter Delivery OTP'}>
+      <Modal open={showOtp} onClose={() => setShowOtp(false)} title={isClient ? 'Your Delivery OTP' : 'Enter Delivery OTP'}>
         <div className="space-y-4 text-center">
           {isClient ? (
-            <p className="text-gray-600 text-sm">Check your email for the 4-digit OTP. Share it with the rider when you receive your item.</p>
+            <>
+              {order?.deliveryOtp ? (
+                <>
+                  <p className="text-gray-600 text-sm">Share this OTP with the rider <strong>only after</strong> you receive your item.</p>
+                  <div className="bg-green-50 border-2 border-dashed border-green-400 rounded-xl py-5 px-4">
+                    <span className="text-4xl font-extrabold tracking-[12px] text-green-600">{order.deliveryOtp}</span>
+                  </div>
+                  <p className="text-xs text-gray-400">OTP valid for 15 minutes</p>
+                </>
+              ) : (
+                <p className="text-gray-600 text-sm">Check your email for the 4-digit OTP. If you don't see it, refresh the page or check your spam folder.</p>
+              )}
+            </>
           ) : (
             <>
-              <p className="text-gray-600 text-sm">Ask the client for the 4-digit OTP from their email.</p>
+              <p className="text-gray-600 text-sm">Ask the client for the 4-digit OTP.</p>
               <div className="flex gap-2 justify-center">
                 {otpInput.map((d, i) => (
                   <input key={i} ref={el => { otpRefs.current[i] = el }}

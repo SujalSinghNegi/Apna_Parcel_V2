@@ -1,6 +1,8 @@
 'use client'
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useCallback } from 'react'
 import { ordersApi } from '@/lib/api'
+import { useAuthStore } from '@/store/auth'
+import { initSocket, EVENTS } from '@/lib/socket'
 import { Order } from '@/types'
 import { Card, CardContent } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/Badge'
@@ -15,11 +17,37 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [activeRole, setActiveRole] = useState(role)
+  const { accessToken } = useAuthStore() as any
 
-  useEffect(() => {
+  const fetchOrders = useCallback(() => {
     setLoading(true)
     ordersApi.list(activeRole).then(r => setOrders(r.data.data || [])).finally(() => setLoading(false))
   }, [activeRole])
+
+  useEffect(() => { fetchOrders() }, [fetchOrders])
+
+  // Real-time: refetch on any status change or new order events
+  useEffect(() => {
+    if (!accessToken) return
+    const sock = initSocket(accessToken)
+
+    const refresh = () => fetchOrders()
+    sock.on(EVENTS.ORDER_STATUS, refresh)
+    sock.on(EVENTS.ORDER_ACCEPTED, refresh)
+    sock.on(EVENTS.RIDER_ARRIVED, refresh)
+    sock.on(EVENTS.ORDER_DELIVERED, refresh)
+    sock.on(EVENTS.ORDER_CANCELLED, refresh)
+    sock.on(EVENTS.NOTIFICATION, refresh)
+
+    return () => {
+      sock.off(EVENTS.ORDER_STATUS, refresh)
+      sock.off(EVENTS.ORDER_ACCEPTED, refresh)
+      sock.off(EVENTS.RIDER_ARRIVED, refresh)
+      sock.off(EVENTS.ORDER_DELIVERED, refresh)
+      sock.off(EVENTS.ORDER_CANCELLED, refresh)
+      sock.off(EVENTS.NOTIFICATION, refresh)
+    }
+  }, [accessToken, fetchOrders])
 
   return (
     <div className="page-container max-w-2xl mx-auto space-y-5 animate-fade-in">

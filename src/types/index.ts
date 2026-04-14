@@ -40,7 +40,7 @@ export interface Order {
   declaredEtaMinutes?: number; riderAcceptedAt?: string; riderLeftAt?: string;
   arrivedAt?: string; deliveredAt?: string; cancelledAt?: string;
   cancelReason?: string; cancelledBy?: string; travelCompensation?: number;
-  otpExpiresAt?: string; createdAt: string; updatedAt: string;
+  deliveryOtp?: string; otpExpiresAt?: string; createdAt: string; updatedAt: string;
   client?: OrderUser; rider?: OrderUser;
   payment?: { status: PaymentStatus; totalAmount: number; stripePaymentIntentId?: string };
 }
