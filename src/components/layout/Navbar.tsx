@@ -5,14 +5,16 @@ import { useAuthStore } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
 import { Bell, Package, ChevronDown, ShoppingBag, Bike, Home, Store, Shield, LogOut, User, ClipboardList, MessageSquare } from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
-import { authApi, getErrorMessage } from '@/lib/api'
+import { authApi, usersApi, getErrorMessage } from '@/lib/api'
+import { initSocket, EVENTS } from '@/lib/socket'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
 
 export const Navbar = () => {
-  const { user, clearAuth, refreshToken } = useAuthStore() as any
+  const { user, clearAuth, refreshToken, accessToken } = useAuthStore() as any
   const pathname = usePathname()
   const [menuOpen, setMenuOpen] = useState(false)
+  const [unreadCount, setUnreadCount] = useState(0)
   const menuRef = useRef<HTMLDivElement>(null)
 
   // Close menu on click outside
@@ -23,6 +25,30 @@ export const Navbar = () => {
     document.addEventListener('mousedown', handle)
     return () => document.removeEventListener('mousedown', handle)
   }, [])
+
+  // Fetch unread count
+  useEffect(() => {
+    usersApi.notifications(1)
+      .then(r => {
+        const notifs = r.data.data || []
+        setUnreadCount(notifs.filter((n: any) => !n.isRead).length)
+      })
+      .catch(() => {})
+  }, [pathname]) // re-check when navigating
+
+  // Listen for new notifications via socket
+  useEffect(() => {
+    if (!accessToken) return
+    const socket = initSocket(accessToken)
+    const handler = () => setUnreadCount(c => c + 1)
+    socket.on(EVENTS.NOTIFICATION, handler)
+    return () => { socket.off(EVENTS.NOTIFICATION, handler) }
+  }, [accessToken])
+
+  // Reset count when visiting notifications page
+  useEffect(() => {
+    if (pathname === '/notifications') setUnreadCount(0)
+  }, [pathname])
 
   const handleLogout = async () => {
     try {
@@ -81,7 +107,11 @@ export const Navbar = () => {
           <Link href="/notifications"
             className="relative p-2.5 rounded-xl hover:bg-gray-100 text-navy-400 hover:text-navy-600 transition-all">
             <Bell className="w-5 h-5" />
-            <span className="absolute top-2 right-2 w-2 h-2 bg-brand rounded-full ring-2 ring-white" />
+            {unreadCount > 0 && (
+              <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-brand rounded-full flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-white animate-bounce-in px-1">
+                {unreadCount > 9 ? '9+' : unreadCount}
+              </span>
+            )}
           </Link>
           <div className="relative" ref={menuRef}>
             <button onClick={() => setMenuOpen(!menuOpen)}

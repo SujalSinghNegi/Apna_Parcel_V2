@@ -122,6 +122,7 @@ export const chatApi = {
 // ── Ratings ─────────────────────────────────────────────────────────────────
 export const ratingsApi = {
   submit: (orderId: string, data: Record<string, unknown>) => api.post(`/ratings/${orderId}`, data),
+  check: (orderId: string) => api.get(`/ratings/${orderId}/check`),
   getUserRatings: (userId: string) => api.get(`/ratings/user/${userId}`),
 }
 

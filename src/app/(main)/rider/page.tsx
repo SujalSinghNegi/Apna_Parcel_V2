@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { ordersApi, getErrorMessage } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { initSocket, EVENTS } from '@/lib/socket'
+import { usePolling } from '@/hooks/usePolling'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { TrustBadge } from '@/components/ui/Badge'
@@ -45,6 +46,9 @@ export default function RiderPage() {
   }, [filters])
 
   useEffect(() => { fetchAvailable() }, [fetchAvailable])
+
+  // Poll for new available orders every 15s (riders need faster updates)
+  usePolling(fetchAvailable, 15_000, !loading)
 
   // Real-time: refresh available orders when new orders or cancellations happen
   useEffect(() => {

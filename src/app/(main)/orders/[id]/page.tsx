@@ -1,8 +1,9 @@
 'use client'
 import { useEffect, useState, useRef, useCallback } from 'react'
-import { ordersApi, paymentsApi, chatApi, uploadApi, trackingApi, getErrorMessage } from '@/lib/api'
+import { ordersApi, paymentsApi, chatApi, uploadApi, trackingApi, ratingsApi, getErrorMessage } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { initSocket, joinOrderRoom, leaveOrderRoom, sendChatMessage, EVENTS } from '@/lib/socket'
+import { usePolling } from '@/hooks/usePolling'
 import { Order, Message, RiderLocation } from '@/types'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -56,6 +57,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [actualPrice, setActualPrice] = useState('')
   const [showPhotoUpload, setShowPhotoUpload] = useState(false)
   const [paymentModal, setPaymentModal] = useState<{ open: boolean; clientSecret: string; amount: number }>({ open: false, clientSecret: '', amount: 0 })
+  const [hasRated, setHasRated] = useState(false)
 
   // ── Live map state ─────────────────────────────────────────────────────────
   const [lastKnownLocation, setLastKnownLocation] = useState<RiderLocation | null>(null)
@@ -92,6 +94,19 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     fetchOrder()
     chatApi.history(id).then(r => setMessages(r.data.data || [])).catch(() => {})
   }, [fetchOrder, id])
+
+  // Poll order status every 15s as fallback for socket disconnections
+  const isActiveOrder = order && !['DELIVERED', 'CANCELLED', 'ITEM_NOT_FOUND'].includes(order.status)
+  usePolling(fetchOrder, 15_000, !!isActiveOrder)
+
+  // Check if user already rated this order
+  useEffect(() => {
+    if (order?.status === 'DELIVERED') {
+      ratingsApi.check(id).then(r => {
+        if (r.data.data?.hasRated) setHasRated(true)
+      }).catch(() => {})
+    }
+  }, [order?.status, id])
 
   useEffect(() => {
     if (!accessToken) return
@@ -391,11 +406,21 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             )}
 
             {order.status === 'DELIVERED' && (
-              <Link href={`/ratings/${id}?ratedUserId=${order.riderId}`}>
-                <Button className="w-full" variant="secondary">
-                  <Star className="w-4 h-4" /> Rate Your Rider
-                </Button>
-              </Link>
+              hasRated ? (
+                <Card className="border-green-200 bg-green-50">
+                  <CardContent className="py-3 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                    <p className="text-xs text-green-800 font-medium">You have already rated this order</p>
+                    <Link href={`/ratings/${id}?ratedUserId=${order.riderId}`} className="ml-auto text-xs font-bold text-green-700 hover:underline">View</Link>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Link href={`/ratings/${id}?ratedUserId=${order.riderId}`}>
+                  <Button className="w-full" variant="secondary">
+                    <Star className="w-4 h-4" /> Rate Your Rider
+                  </Button>
+                </Link>
+              )
             )}
           </>
         )}
@@ -442,9 +467,19 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             )}
 
             {order.status === 'DELIVERED' && (
-              <Link href={`/ratings/${id}?ratedUserId=${order.clientId}`}>
-                <Button className="w-full" variant="secondary"><Star className="w-4 h-4" /> Rate Client</Button>
-              </Link>
+              hasRated ? (
+                <Card className="border-green-200 bg-green-50">
+                  <CardContent className="py-3 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                    <p className="text-xs text-green-800 font-medium">You have already rated this order</p>
+                    <Link href={`/ratings/${id}?ratedUserId=${order.clientId}`} className="ml-auto text-xs font-bold text-green-700 hover:underline">View</Link>
+                  </CardContent>
+                </Card>
+              ) : (
+                <Link href={`/ratings/${id}?ratedUserId=${order.clientId}`}>
+                  <Button className="w-full" variant="secondary"><Star className="w-4 h-4" /> Rate Client</Button>
+                </Link>
+              )
             )}
           </>
         )}

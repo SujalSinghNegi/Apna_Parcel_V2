@@ -3,10 +3,11 @@ import { useEffect, useState, useCallback } from 'react'
 import { usersApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { initSocket, EVENTS } from '@/lib/socket'
+import { usePolling } from '@/hooks/usePolling'
 import { Notification } from '@/types'
 import { Card, CardContent } from '@/components/ui/Card'
 import { fmt, cn } from '@/lib/utils'
-import { Bell, Package, CreditCard, Star, AlertTriangle, CheckCircle, XCircle, Loader2 } from 'lucide-react'
+import { Bell, Package, CreditCard, Star, AlertTriangle, CheckCircle, XCircle, Loader2, RefreshCw } from 'lucide-react'
 import Link from 'next/link'
 
 const ICON_MAP: Record<string, { icon: React.ElementType; color: string; bg: string }> = {
@@ -24,6 +25,7 @@ const ICON_MAP: Record<string, { icon: React.ElementType; color: string; bg: str
 export default function NotificationsPage() {
   const [notifications, setNotifications] = useState<Notification[]>([])
   const [loading, setLoading] = useState(true)
+  const [newIds, setNewIds] = useState<Set<string>>(new Set())
   const { accessToken } = useAuthStore() as any
 
   const fetchNotifications = useCallback(() => {
@@ -34,6 +36,9 @@ export default function NotificationsPage() {
 
   useEffect(() => { fetchNotifications() }, [fetchNotifications])
 
+  // Poll for new notifications every 30s
+  usePolling(fetchNotifications, 30_000, !loading)
+
   // Real-time: listen for new notifications via socket
   useEffect(() => {
     if (!accessToken) return
@@ -41,6 +46,13 @@ export default function NotificationsPage() {
 
     sock.on(EVENTS.NOTIFICATION, (notification: Notification) => {
       setNotifications(prev => [notification, ...prev])
+      setNewIds(prev => new Set(prev).add(notification.id))
+      // Clear the "new" highlight after 3s
+      setTimeout(() => setNewIds(prev => {
+        const next = new Set(prev)
+        next.delete(notification.id)
+        return next
+      }), 3000)
     })
 
     return () => { sock.off(EVENTS.NOTIFICATION) }
@@ -76,7 +88,11 @@ export default function NotificationsPage() {
             const conf = ICON_MAP[n.type] || { icon: Bell, color: 'text-navy', bg: 'bg-navy-50' }
             const Icon = conf.icon
             const content = (
-              <Card key={n.id} className={cn('transition-all card-hover', !n.isRead && 'border-l-4 border-l-brand')}>
+              <Card key={n.id} className={cn(
+                'transition-all card-hover',
+                !n.isRead && 'border-l-4 border-l-brand',
+                newIds.has(n.id) && 'ring-2 ring-brand/30 animate-slide-in-right'
+              )}>
                 <CardContent className="py-4 flex items-start gap-3">
                   <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center shrink-0', conf.bg)}>
                     <Icon className={cn('w-5 h-5', conf.color)} />

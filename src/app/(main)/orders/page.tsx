@@ -3,6 +3,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { ordersApi } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
 import { initSocket, EVENTS } from '@/lib/socket'
+import { usePolling } from '@/hooks/usePolling'
 import { Order } from '@/types'
 import { Card, CardContent } from '@/components/ui/Card'
 import { StatusBadge } from '@/components/ui/Badge'
@@ -25,6 +26,9 @@ export default function OrdersPage() {
   }, [activeRole])
 
   useEffect(() => { fetchOrders() }, [fetchOrders])
+
+  // Poll for fresh orders every 30s as fallback
+  usePolling(fetchOrders, 30_000, !loading)
 
   // Real-time: refetch on any status change or new order events
   useEffect(() => {
