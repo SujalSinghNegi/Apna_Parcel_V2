@@ -153,12 +153,12 @@ export const LiveMap = ({ orderId, lastKnownLocation, onLocationRef }: LiveMapPr
           <>
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
             <Signal className="w-3.5 h-3.5 text-green-600" />
-            <span className="text-xs font-display font-semibold text-green-700">Live</span>
+            <span className="text-xs font-bold text-green-700">Live</span>
           </>
         ) : (
           <>
             <WifiOff className="w-3.5 h-3.5 text-gray-400" />
-            <span className="text-xs font-display font-semibold text-gray-500">Connecting…</span>
+            <span className="text-xs font-bold text-gray-500">Connecting…</span>
           </>
         )}
       </div>

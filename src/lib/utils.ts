@@ -27,6 +27,7 @@ export const STATUS_COLORS: Partial<Record<OrderStatus, { bg: string; text: stri
   AT_SHOP: { bg: 'bg-purple-50', text: 'text-purple-800', dot: 'bg-purple-400' },
   ITEM_PURCHASED: { bg: 'bg-orange-50', text: 'text-orange-800', dot: 'bg-orange-400' },
   PHOTO_APPROVED: { bg: 'bg-teal-50', text: 'text-teal-800', dot: 'bg-teal-400' },
+  PAID: { bg: 'bg-emerald-50', text: 'text-emerald-800', dot: 'bg-emerald-400' },
   DELIVERING: { bg: 'bg-cyan-50', text: 'text-cyan-800', dot: 'bg-cyan-400' },
   ARRIVED: { bg: 'bg-lime-50', text: 'text-lime-800', dot: 'bg-lime-400' },
   DELIVERED: { bg: 'bg-green-50', text: 'text-green-800', dot: 'bg-green-400' },
@@ -36,7 +37,7 @@ export const STATUS_COLORS: Partial<Record<OrderStatus, { bg: string; text: stri
 }
 
 export const canClientCancel = (status: OrderStatus) =>
-  ['PENDING', 'ACCEPTED'].includes(status)
+  ['PENDING', 'ACCEPTED', 'RIDER_LEFT', 'AT_SHOP'].includes(status)
 
 export const isActiveOrder = (status: OrderStatus) =>
   !['DELIVERED', 'CANCELLED', 'ITEM_NOT_FOUND'].includes(status)

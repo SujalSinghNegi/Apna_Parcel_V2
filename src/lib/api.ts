@@ -64,10 +64,12 @@ export const ordersApi = {
   accept: (id: string, declaredEtaMinutes: number) => api.post(`/orders/${id}/accept`, { declaredEtaMinutes }),
   leaving: (id: string) => api.post(`/orders/${id}/leaving`),
   atShop: (id: string) => api.post(`/orders/${id}/at-shop`),
-  itemPurchased: (id: string, purchasedPhotoUrl: string, actualPrice: number) =>
-    api.post(`/orders/${id}/item-purchased`, { purchasedPhotoUrl, actualPrice }),
+  itemPurchased: (id: string, purchasedPhotoUrl: string, actualPrice: number, purchasedPhotoUrls?: string[]) =>
+    api.post(`/orders/${id}/item-purchased`, { purchasedPhotoUrl, actualPrice, purchasedPhotoUrls }),
   approvePhoto: (id: string) => api.post(`/orders/${id}/approve-photo`),
   rejectPhoto: (id: string, reason: string) => api.post(`/orders/${id}/reject-photo`, { reason }),
+  markPaid: (id: string) => api.post(`/orders/${id}/mark-paid`),
+  delivering: (id: string) => api.post(`/orders/${id}/delivering`),
   itemNotFound: (id: string) => api.post(`/orders/${id}/item-not-found`),
   arrived: (id: string) => api.post(`/orders/${id}/arrived`),
   verifyOtp: (id: string, otp: string) => api.post(`/orders/${id}/verify-otp`, { otp }),
@@ -77,7 +79,14 @@ export const ordersApi = {
 // ── Payments ────────────────────────────────────────────────────────────────
 export const paymentsApi = {
   createIntent: (orderId: string) => api.post('/payments/create-intent', { orderId }),
+  confirmPayment: (orderId: string) => api.post('/payments/confirm-payment', { orderId }),
   getByOrder: (orderId: string) => api.get(`/payments/order/${orderId}`),
+}
+
+// ── Wallet ──────────────────────────────────────────────────────────────────
+export const walletApi = {
+  get: () => api.get('/wallet'),
+  transactions: (page = 1) => api.get(`/wallet/transactions?page=${page}`),
 }
 
 // ── Upload ──────────────────────────────────────────────────────────────────

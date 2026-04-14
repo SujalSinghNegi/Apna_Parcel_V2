@@ -46,12 +46,12 @@ export default function AdminComplaintsPage() {
 
   return (
     <div className="page-container max-w-4xl mx-auto space-y-4">
-      <h1 className="text-2xl font-display font-bold text-navy">Manage Complaints</h1>
+      <h1 className="text-2xl font-extrabold text-navy">Manage Complaints</h1>
 
       <div className="flex gap-2">
         {['OPEN','UNDER_REVIEW','RESOLVED','DISMISSED',''].map(s => (
           <button key={s} onClick={() => setStatus(s)}
-            className={cn('px-3.5 py-2 rounded-full text-sm font-display font-semibold transition-all',
+            className={cn('px-3.5 py-2 rounded-full text-sm font-bold transition-all',
               status === s ? 'bg-brand text-white' : 'bg-white text-gray-600 border border-gray-200')}>
             {s || 'All'}
           </button>
@@ -68,21 +68,21 @@ export default function AdminComplaintsPage() {
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-display font-bold text-navy text-sm">{c.category.replace(/_/g,' ')}</p>
-                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-bold font-display', STATUS_COLORS[c.status])}>{c.status}</span>
+                      <p className="font-extrabold text-navy text-sm">{c.category.replace(/_/g,' ')}</p>
+                      <span className={cn('px-2 py-0.5 rounded-full text-xs font-extrabold', STATUS_COLORS[c.status])}>{c.status}</span>
                     </div>
-                    <p className="text-xs text-gray-500 font-sans mt-0.5">
+                    <p className="text-xs text-gray-500 mt-0.5">
                       By: {c.raisedBy?.name} · Order: {c.order?.itemName} · {fmt.relative(c.createdAt)}
                     </p>
-                    <p className="text-sm text-gray-700 font-sans mt-2 line-clamp-2">{c.description}</p>
+                    <p className="text-sm text-gray-700 mt-2 line-clamp-2">{c.description}</p>
                     {c.evidenceUrl && (
-                      <a href={c.evidenceUrl} target="_blank" rel="noreferrer" className="text-xs text-brand font-semibold font-display mt-1 inline-block">
+                      <a href={c.evidenceUrl} target="_blank" rel="noreferrer" className="text-xs text-brand font-bold mt-1 inline-block">
                         View Evidence →
                       </a>
                     )}
                     {c.adminNotes && (
                       <div className="mt-2 bg-teal-50 rounded-xl px-3 py-2">
-                        <p className="text-xs font-semibold text-teal-700 font-display">Your note: {c.adminNotes}</p>
+                        <p className="text-xs font-bold text-teal-700">Your note: {c.adminNotes}</p>
                       </div>
                     )}
                   </div>
@@ -98,7 +98,7 @@ export default function AdminComplaintsPage() {
           {complaints.length === 0 && (
             <Card><CardContent className="py-12 text-center">
               <MessageSquareWarning className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-              <p className="font-display text-gray-400">No complaints in this category</p>
+              <p className="text-gray-400">No complaints in this category</p>
             </CardContent></Card>
           )}
         </div>
@@ -108,24 +108,24 @@ export default function AdminComplaintsPage() {
         {resolving && (
           <div className="space-y-4">
             <div className="bg-gray-50 rounded-2xl p-4">
-              <p className="font-display font-bold text-navy text-sm">{resolving.category.replace(/_/g,' ')}</p>
-              <p className="text-sm text-gray-600 font-sans mt-1">{resolving.description}</p>
+              <p className="font-extrabold text-navy text-sm">{resolving.category.replace(/_/g,' ')}</p>
+              <p className="text-sm text-gray-600 mt-1">{resolving.description}</p>
             </div>
             <div className="flex gap-2">
               <button onClick={() => setForm(p => ({ ...p, resolution: 'RESOLVED' }))}
-                className={cn('flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-sm font-semibold font-display border-2 transition-all',
+                className={cn('flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-sm font-bold border-2 transition-all',
                   form.resolution === 'RESOLVED' ? 'border-green-600 bg-green-600 text-white' : 'border-gray-200 text-gray-600')}>
                 <CheckCircle className="w-4 h-4" /> Resolve
               </button>
               <button onClick={() => setForm(p => ({ ...p, resolution: 'DISMISSED' }))}
-                className={cn('flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-sm font-semibold font-display border-2 transition-all',
+                className={cn('flex-1 py-2.5 rounded-xl flex items-center justify-center gap-1.5 text-sm font-bold border-2 transition-all',
                   form.resolution === 'DISMISSED' ? 'border-gray-600 bg-gray-600 text-white' : 'border-gray-200 text-gray-600')}>
                 <XCircle className="w-4 h-4" /> Dismiss
               </button>
             </div>
             <div className="space-y-1">
-              <label className="block text-sm font-semibold text-navy-700 font-display">Admin Notes (shown to user) *</label>
-              <textarea className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm font-sans focus:border-brand focus:outline-none resize-none"
+              <label className="block text-sm font-bold text-navy-700">Admin Notes (shown to user) *</label>
+              <textarea className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm focus:border-brand focus:outline-none resize-none"
                 rows={3} placeholder="Explain your decision to the user..."
                 value={form.adminNotes} onChange={e => setForm(p => ({ ...p, adminNotes: e.target.value }))} />
             </div>

@@ -28,13 +28,13 @@ export default function AdminDashboard() {
   if (loading) return <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-brand" /></div>
 
   return (
-    <div className="page-container max-w-4xl mx-auto space-y-6">
+    <div className="page-container max-w-4xl mx-auto space-y-6 animate-fade-in">
       <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-display font-bold text-navy">Admin Dashboard</h1>
+        <h1 className="text-2xl font-extrabold text-navy">Admin Dashboard</h1>
         <div className="flex bg-gray-100 rounded-xl p-1 gap-1">
           {['day','week','month'].map(p => (
             <button key={p} onClick={() => setPeriod(p)}
-              className={`px-3 py-1.5 rounded-lg text-sm font-display font-semibold capitalize transition-all ${period === p ? 'bg-white text-navy shadow-sm' : 'text-gray-500'}`}>
+              className={`px-3 py-1.5 rounded-lg text-sm font-bold capitalize transition-all ${period === p ? 'bg-white text-navy shadow-sm' : 'text-gray-500'}`}>
               {p}
             </button>
           ))}
@@ -51,13 +51,13 @@ export default function AdminDashboard() {
         ].map(s => {
           const Icon = s.icon
           return (
-            <Card key={s.label}>
+            <Card key={s.label} className="card-hover">
               <CardContent className="py-4">
                 <div className={`w-10 h-10 ${s.bg} rounded-xl flex items-center justify-center mb-3`}>
                   <Icon className={`w-5 h-5 ${s.color}`} />
                 </div>
-                <p className="text-2xl font-display font-bold text-navy">{s.val ?? '—'}</p>
-                <p className="text-xs text-gray-500 font-sans mt-0.5">{s.label}</p>
+                <p className="text-2xl font-extrabold text-navy">{s.val ?? '—'}</p>
+                <p className="text-xs text-gray-400 font-medium mt-0.5">{s.label}</p>
               </CardContent>
             </Card>
           )
@@ -68,7 +68,7 @@ export default function AdminDashboard() {
       <div className="grid sm:grid-cols-2 gap-3">
         <Card>
           <CardContent className="py-4">
-            <h3 className="font-display font-semibold text-navy text-sm mb-3">Revenue ({period})</h3>
+            <h3 className="font-extrabold text-navy text-sm mb-3">Revenue ({period})</h3>
             <div className="space-y-2">
               {[
                 { label: 'Platform Fees', val: fmt.currency(revenue?.platformFees || 0), color: 'text-green-600' },
@@ -77,8 +77,8 @@ export default function AdminDashboard() {
                 { label: 'Delivered Orders', val: revenue?.deliveredOrders || 0, color: 'text-navy' },
               ].map(r => (
                 <div key={r.label} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
-                  <span className="text-sm text-gray-500 font-sans">{r.label}</span>
-                  <span className={`text-sm font-display font-bold ${r.color}`}>{r.val}</span>
+                  <span className="text-sm text-gray-400">{r.label}</span>
+                  <span className={`text-sm font-bold ${r.color}`}>{r.val}</span>
                 </div>
               ))}
             </div>
@@ -87,7 +87,7 @@ export default function AdminDashboard() {
 
         <Card>
           <CardContent className="py-4">
-            <h3 className="font-display font-semibold text-navy text-sm mb-3">Orders ({period})</h3>
+            <h3 className="font-extrabold text-navy text-sm mb-3">Orders ({period})</h3>
             <div className="space-y-2">
               {[
                 { label: 'Today', val: stats?.orders?.today },
@@ -96,8 +96,8 @@ export default function AdminDashboard() {
                 { label: 'Active now', val: stats?.orders?.active },
               ].map(r => (
                 <div key={r.label} className="flex justify-between items-center py-1.5 border-b border-gray-50 last:border-0">
-                  <span className="text-sm text-gray-500 font-sans">{r.label}</span>
-                  <span className="text-sm font-display font-bold text-navy">{r.val ?? '—'}</span>
+                  <span className="text-sm text-gray-400">{r.label}</span>
+                  <span className="text-sm font-bold text-navy">{r.val ?? '—'}</span>
                 </div>
               ))}
             </div>
@@ -109,7 +109,7 @@ export default function AdminDashboard() {
       {stats?.users?.byType && (
         <Card>
           <CardContent className="py-4">
-            <h3 className="font-display font-semibold text-navy text-sm mb-3">Users by Type</h3>
+            <h3 className="font-extrabold text-navy text-sm mb-3">Users by Type</h3>
             <div className="grid grid-cols-3 gap-3">
               {[
                 { key: 'STUDENT', label: 'Students', emoji: '🎓' },
@@ -118,8 +118,8 @@ export default function AdminDashboard() {
               ].map(t => (
                 <div key={t.key} className="bg-gray-50 rounded-2xl p-3 text-center">
                   <p className="text-2xl">{t.emoji}</p>
-                  <p className="text-xl font-display font-bold text-navy mt-1">{stats.users.byType[t.key] || 0}</p>
-                  <p className="text-xs text-gray-500 font-sans">{t.label}</p>
+                  <p className="text-xl font-extrabold text-navy mt-1">{stats.users.byType[t.key] || 0}</p>
+                  <p className="text-xs text-gray-400 font-medium">{t.label}</p>
                 </div>
               ))}
             </div>
@@ -137,14 +137,14 @@ export default function AdminDashboard() {
           const Icon = nav.icon
           return (
             <Link key={nav.href} href={nav.href}>
-              <Card className="hover:border-brand/30 transition-all h-full">
+              <Card className="card-hover h-full">
                 <CardContent className="py-4 flex items-center gap-3">
                   <div className={`w-10 h-10 ${nav.color} rounded-xl flex items-center justify-center shrink-0`}>
                     <Icon className="w-5 h-5 text-white" />
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="font-display font-bold text-navy text-sm">{nav.label}</p>
-                    <p className="text-xs text-gray-500 font-sans">{nav.desc}</p>
+                    <p className="font-bold text-navy text-sm">{nav.label}</p>
+                    <p className="text-xs text-gray-400">{nav.desc}</p>
                   </div>
                   <ChevronRight className="w-4 h-4 text-gray-400 shrink-0" />
                 </CardContent>

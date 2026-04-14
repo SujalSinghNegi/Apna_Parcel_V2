@@ -14,7 +14,7 @@ import { LiveMap } from '@/components/ui/LiveMap'
 import { fmt, cn } from '@/lib/utils'
 import { Send, Image as ImageIcon, CheckCircle2, XCircle, MapPin, Star, AlertTriangle, Package, Loader2, Camera } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { loadStripe } from '@stripe/stripe-js'
+import { StripePaymentModal } from '@/components/ui/StripePaymentModal'
 import Link from 'next/link'
 import dynamic from 'next/dynamic'
 import { useParams } from 'next/navigation'
@@ -52,9 +52,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   const [showCancel, setShowCancel] = useState(false)
   const [showReject, setShowReject] = useState(false)
   const [showOtp, setShowOtp] = useState(false)
-  const [photoFile, setPhotoFile] = useState<File | null>(null)
+  const [photoFiles, setPhotoFiles] = useState<File[]>([])
   const [actualPrice, setActualPrice] = useState('')
   const [showPhotoUpload, setShowPhotoUpload] = useState(false)
+  const [paymentModal, setPaymentModal] = useState<{ open: boolean; clientSecret: string; amount: number }>({ open: false, clientSecret: '', amount: 0 })
 
   // ── Live map state ─────────────────────────────────────────────────────────
   const [lastKnownLocation, setLastKnownLocation] = useState<RiderLocation | null>(null)
@@ -140,16 +141,29 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   const handlePay = async () => {
-    doAction('pay', async () => {
+    setActionLoading('pay')
+    try {
       const { data } = await paymentsApi.createIntent(id)
-      const stripe = await loadStripe(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY || '')
-      if (!stripe) return
-      const { error } = await stripe.confirmCardPayment(data.data.clientSecret, {
-        payment_method: { card: { number: '4242424242424242', exp_month: 12, exp_year: 2030, cvc: '123' } as any },
+      setPaymentModal({
+        open: true,
+        clientSecret: data.data.clientSecret,
+        amount: data.data.amount,
       })
-      if (error) throw new Error(error.message)
-      toast.success('Payment successful! Rider can now leave.')
-    })
+    } catch (e) {
+      toast.error(getErrorMessage(e))
+    } finally {
+      setActionLoading('')
+    }
+  }
+
+  const handlePaymentSuccess = async () => {
+    setPaymentModal({ open: false, clientSecret: '', amount: 0 })
+    try {
+      await paymentsApi.confirmPayment(id)
+      await ordersApi.markPaid(id)
+    } catch {}
+    toast.success('Payment successful! Funds held securely until delivery.')
+    await fetchOrder()
   }
 
   const handleSendMsg = () => {
@@ -168,13 +182,17 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   }
 
   const handleItemPurchased = async () => {
-    if (!photoFile) { toast.error('Take a photo of the item first'); return }
+    if (photoFiles.length === 0) { toast.error('Take at least one photo of the item'); return }
     if (!actualPrice) { toast.error('Enter actual price paid'); return }
     doAction('purchased', async () => {
-      const { data: upData } = await uploadApi.orderItemPhoto(photoFile, id)
-      await ordersApi.itemPurchased(id, upData.data.url, parseFloat(actualPrice))
-      setPhotoFile(null); setShowPhotoUpload(false)
-      toast.success('Photo sent to client for approval!')
+      const urls: string[] = []
+      for (const file of photoFiles) {
+        const { data: upData } = await uploadApi.orderItemPhoto(file, id)
+        urls.push(upData.data.url)
+      }
+      await ordersApi.itemPurchased(id, urls[0], parseFloat(actualPrice), urls)
+      setPhotoFiles([]); setShowPhotoUpload(false)
+      toast.success('Photos & price sent to client for approval!')
     })
   }
 
@@ -214,15 +232,15 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 <Package className="w-5 h-5 text-brand" />
               </div>
               <div>
-                <h1 className="font-display font-bold text-navy">{order.itemName}</h1>
-                <p className="text-xs text-gray-500 font-sans">#{order.id.slice(-8).toUpperCase()} · {fmt.datetime(order.createdAt)}</p>
+                <h1 className="font-extrabold text-navy">{order.itemName}</h1>
+                <p className="text-xs text-gray-500">#{order.id.slice(-8).toUpperCase()} · {fmt.datetime(order.createdAt)}</p>
               </div>
             </div>
             <StatusBadge status={order.status} />
           </div>
 
           {order.itemDescription && (
-            <p className="text-sm text-gray-600 font-sans mt-3 bg-gray-50 rounded-xl px-3 py-2">{order.itemDescription}</p>
+            <p className="text-sm text-gray-600 mt-3 bg-gray-50 rounded-xl px-3 py-2">{order.itemDescription}</p>
           )}
 
           <div className="mt-3 grid grid-cols-4 gap-2 text-center">
@@ -233,12 +251,12 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               { label: 'Tip', val: fmt.currency(order.tip) },
             ].map(c => (
               <div key={c.label} className="bg-gray-50 rounded-xl py-2">
-                <p className="text-[11px] text-gray-500 font-sans">{c.label}</p>
-                <p className="text-sm font-display font-bold text-navy">{c.val}</p>
+                <p className="text-[11px] text-gray-500">{c.label}</p>
+                <p className="text-sm font-extrabold text-navy">{c.val}</p>
               </div>
             ))}
           </div>
-          <div className="mt-2 flex justify-between items-center font-display font-bold text-navy bg-brand-50 rounded-xl px-3 py-2">
+          <div className="mt-2 flex justify-between items-center font-extrabold text-navy bg-brand-50 rounded-xl px-3 py-2">
             <span>Total</span><span className="text-brand text-lg">{fmt.currency(order.totalAmount)}</span>
           </div>
         </CardContent>
@@ -249,8 +267,8 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         <Card>
           <CardContent className="py-4">
             <div className="flex items-center justify-between mb-3">
-              <h3 className="font-display font-semibold text-navy text-sm">Rider Location</h3>
-              <span className="text-xs text-gray-500 font-sans">Updates every 5 seconds</span>
+              <h3 className="font-bold text-navy text-sm">Rider Location</h3>
+              <span className="text-xs text-gray-500">Updates every 5 seconds</span>
             </div>
             <LiveMapDynamic
               orderId={id}
@@ -258,7 +276,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               onLocationRef={(fn) => { mapLocationUpdater.current = fn }}
             />
             {lastKnownLocation && (
-              <p className="text-xs text-gray-400 font-sans mt-2 text-right">
+              <p className="text-xs text-gray-400 mt-2 text-right">
                 Last update: {fmt.relative(lastKnownLocation.updatedAt)}
               </p>
             )}
@@ -273,7 +291,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             <div className="flex items-center gap-3">
               <Avatar src={counterpart.profilePhoto} name={counterpart.name} size="md" />
               <div>
-                <p className="font-display font-semibold text-navy text-sm">{counterpart.name}</p>
+                <p className="font-bold text-navy text-sm">{counterpart.name}</p>
                 <TrustBadge level={counterpart.trustLevel} />
               </div>
             </div>
@@ -281,10 +299,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               {counterpart.rating > 0 && (
                 <div className="flex items-center gap-1 justify-end">
                   <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400" />
-                  <span className="text-sm font-bold font-display">{counterpart.rating.toFixed(1)}</span>
+                  <span className="text-sm font-extrabold">{counterpart.rating.toFixed(1)}</span>
                 </div>
               )}
-              <p className="text-xs text-gray-500 font-sans">{counterpart.completedOrders} orders</p>
+              <p className="text-xs text-gray-500">{counterpart.completedOrders} orders</p>
             </div>
           </CardContent>
         </Card>
@@ -294,25 +312,32 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       <div className="space-y-2">
         {isClient && (
           <>
-            {order.status === 'ACCEPTED' && !order.payment?.status?.match(/AUTHORIZED|CAPTURED/) && (
-              <Button className="w-full" size="lg" onClick={handlePay} loading={actionLoading === 'pay'}>
-                💳 Pay {fmt.currency(order.totalAmount)} to Confirm
-              </Button>
-            )}
+            {/* ITEM_PURCHASED: client sees photos + updated price, approves or rejects */}
             {order.status === 'ITEM_PURCHASED' && (
               <div className="space-y-2">
-                {order.purchasedPhotoUrl && (
-                  <div className="rounded-2xl overflow-hidden border-2 border-brand/20">
-                    <img src={order.purchasedPhotoUrl} alt="Purchased item" className="w-full max-h-64 object-cover" />
-                    <div className="p-3 bg-brand-50">
-                      <p className="text-sm font-semibold text-navy font-display">Rider bought: {order.itemName}</p>
-                      {order.actualPrice && <p className="text-xs text-gray-600 font-sans">Paid: {fmt.currency(order.actualPrice)}</p>}
-                    </div>
+                {(order.purchasedPhotoUrls?.length ? order.purchasedPhotoUrls : order.purchasedPhotoUrl ? [order.purchasedPhotoUrl] : []).map((url, i) => (
+                  <div key={i} className="rounded-2xl overflow-hidden border-2 border-brand/20">
+                    <img src={url} alt={`Item photo ${i + 1}`} className="w-full max-h-64 object-cover" />
                   </div>
-                )}
+                ))}
+                <div className="p-3 bg-brand-50 rounded-xl">
+                  <p className="text-sm font-bold text-navy">Rider bought: {order.itemName}</p>
+                  {order.actualPrice && (
+                    <div className="mt-1 space-y-1">
+                      {order.actualPrice !== order.expectedPrice && (
+                        <p className="text-xs text-gray-500 line-through">Expected: {fmt.currency(order.expectedPrice)}</p>
+                      )}
+                      <p className="text-sm font-extrabold text-brand">Actual Price: {fmt.currency(order.actualPrice)}</p>
+                    </div>
+                  )}
+                  <div className="mt-2 flex justify-between items-center font-extrabold text-navy bg-white rounded-lg px-3 py-2">
+                    <span className="text-sm">Updated Total</span>
+                    <span className="text-brand">{fmt.currency(order.totalAmount)}</span>
+                  </div>
+                </div>
                 <div className="grid grid-cols-2 gap-2">
                   <Button onClick={() => doAction('approve', () => ordersApi.approvePhoto(id))} loading={actionLoading === 'approve'}>
-                    <CheckCircle2 className="w-4 h-4" /> Approve Photo
+                    <CheckCircle2 className="w-4 h-4" /> Approve
                   </Button>
                   <Button variant="danger" onClick={() => setShowReject(true)}>
                     <XCircle className="w-4 h-4" /> Reject
@@ -320,6 +345,24 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                 </div>
               </div>
             )}
+
+            {/* PHOTO_APPROVED: client pays now */}
+            {order.status === 'PHOTO_APPROVED' && !order.payment?.status?.match(/AUTHORIZED|CAPTURED/) && (
+              <Button className="w-full" size="lg" onClick={handlePay} loading={actionLoading === 'pay'}>
+                💳 Pay {fmt.currency(order.totalAmount)} to Confirm
+              </Button>
+            )}
+
+            {/* PAID: waiting for rider to deliver */}
+            {order.status === 'PAID' && (
+              <Card className="border-green-200 bg-green-50">
+                <CardContent className="py-3 flex items-center gap-2">
+                  <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                  <p className="text-xs text-green-800">Payment of {fmt.currency(order.totalAmount)} held securely. Waiting for rider to deliver.</p>
+                </CardContent>
+              </Card>
+            )}
+
             {order.status === 'ARRIVED' && (
               <Button className="w-full" size="lg" onClick={() => setShowOtp(true)}>
                 🔑 Share Delivery OTP
@@ -338,14 +381,6 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         {isRider && (
           <>
             {order.status === 'ACCEPTED' && (
-              <Card className="border-amber-200 bg-amber-50">
-                <CardContent className="py-3 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <p className="text-xs text-amber-800 font-sans">Wait for client payment before leaving. You have 30 minutes.</p>
-                </CardContent>
-              </Card>
-            )}
-            {order.status === 'ACCEPTED' && order.payment?.status === 'AUTHORIZED' && (
               <Button className="w-full" size="lg" onClick={() => doAction('leaving', () => ordersApi.leaving(id))} loading={actionLoading === 'leaving'}>
                 🚴 I Am Leaving Now
               </Button>
@@ -358,18 +393,49 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             {order.status === 'AT_SHOP' && (
               <div className="space-y-2">
                 <Button className="w-full" onClick={() => setShowPhotoUpload(true)}>
-                  <Camera className="w-4 h-4" /> Take Item Photo
+                  <Camera className="w-4 h-4" /> Take Item Photo & Enter Price
                 </Button>
                 <Button variant="outline" className="w-full" onClick={() => doAction('notfound', () => ordersApi.itemNotFound(id))} loading={actionLoading === 'notfound'}>
                   Item Not Found
                 </Button>
               </div>
             )}
-            {order.status === 'PHOTO_APPROVED' && (
-              <Button className="w-full" onClick={() => doAction('delivering', () => ordersApi.atShop(id))} loading={actionLoading === 'delivering'}>
-                Heading Back 🏃
-              </Button>
+
+            {/* ITEM_PURCHASED: waiting for client to approve */}
+            {order.status === 'ITEM_PURCHASED' && (
+              <Card className="border-amber-200 bg-amber-50">
+                <CardContent className="py-3 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <p className="text-xs text-amber-800">Waiting for client to approve photos and pay. Actual price: {fmt.currency(order.actualPrice || 0)}</p>
+                </CardContent>
+              </Card>
             )}
+
+            {/* PHOTO_APPROVED: waiting for client payment */}
+            {order.status === 'PHOTO_APPROVED' && (
+              <Card className="border-amber-200 bg-amber-50">
+                <CardContent className="py-3 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
+                  <p className="text-xs text-amber-800">Photos approved! Waiting for client to complete payment.</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* PAID: rider picks up and delivers */}
+            {order.status === 'PAID' && (
+              <div className="space-y-2">
+                <Card className="border-green-200 bg-green-50">
+                  <CardContent className="py-3 flex items-center gap-2">
+                    <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
+                    <p className="text-xs text-green-800">Payment received! {fmt.currency(order.totalAmount)} held securely in platform.</p>
+                  </CardContent>
+                </Card>
+                <Button className="w-full" size="lg" onClick={() => doAction('delivering', () => ordersApi.delivering(id))} loading={actionLoading === 'delivering'}>
+                  🏃 Pick Up & Head to Delivery
+                </Button>
+              </div>
+            )}
+
             {order.status === 'DELIVERING' && (
               <Button className="w-full" size="lg" onClick={() => doAction('arrived', () => ordersApi.arrived(id))} loading={actionLoading === 'arrived'}>
                 <MapPin className="w-4 h-4" /> Arrived at Delivery Location
@@ -388,7 +454,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </>
         )}
 
-        {['PENDING', 'ACCEPTED'].includes(order.status) && (
+        {['PENDING', 'ACCEPTED', 'RIDER_LEFT', 'AT_SHOP'].includes(order.status) && (
           <Button variant="ghost" className="w-full text-red-600 hover:bg-red-50" onClick={() => setShowCancel(true)}>
             Cancel Order
           </Button>
@@ -399,7 +465,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       {order.status !== 'PENDING' && !['DELIVERED', 'CANCELLED', 'ITEM_NOT_FOUND'].includes(order.status) && (
         <Card>
           <CardContent className="pt-4 pb-2">
-            <h3 className="font-display font-semibold text-navy text-sm mb-3">Chat</h3>
+            <h3 className="font-bold text-navy text-sm mb-3">Chat</h3>
             <div className="space-y-2 max-h-64 overflow-y-auto scrollbar-none mb-3">
               {messages.map(msg => {
                 const isMine = msg.sender.id === user?.id
@@ -408,7 +474,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
                     <Avatar src={msg.sender.profilePhoto} name={msg.sender.name} size="sm" className="shrink-0 mt-1" />
                     <div className={cn('max-w-[70%] rounded-2xl px-3 py-2', isMine ? 'bg-brand text-white rounded-tr-sm' : 'bg-gray-100 text-navy rounded-tl-sm')}>
                       {msg.photoUrl && <img src={msg.photoUrl} alt="" className="rounded-xl mb-1 max-w-full" />}
-                      {msg.content && <p className="text-sm font-sans">{msg.content}</p>}
+                      {msg.content && <p className="text-sm">{msg.content}</p>}
                       <p className={cn('text-[10px] mt-0.5', isMine ? 'text-white/60' : 'text-gray-400')}>{fmt.time(msg.createdAt)}</p>
                     </div>
                   </div>
@@ -420,7 +486,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
             <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-2">
               {QUICK_MSGS.map(q => (
                 <button key={q.key} onClick={() => handleQuickMsg(q.key)}
-                  className="shrink-0 px-2.5 py-1.5 bg-gray-100 rounded-full text-xs font-sans text-navy hover:bg-brand-50 hover:text-brand transition-colors whitespace-nowrap">
+                  className="shrink-0 px-2.5 py-1.5 bg-gray-100 rounded-full text-xs text-navy hover:bg-brand-50 hover:text-brand transition-colors whitespace-nowrap">
                   {q.label}
                 </button>
               ))}
@@ -432,7 +498,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
               </button>
               <input ref={fileRef} type="file" accept="image/*" className="hidden"
                 onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoSend(f) }} />
-              <input className="flex-1 bg-gray-100 rounded-xl px-4 py-2.5 text-sm font-sans focus:outline-none focus:ring-2 focus:ring-brand/30"
+              <input className="flex-1 bg-gray-100 rounded-xl px-4 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/30"
                 placeholder="Type a message..." value={msgText} onChange={e => setMsgText(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && handleSendMsg()} />
               <button onClick={handleSendMsg} disabled={!msgText.trim()}
@@ -476,14 +542,14 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       <Modal open={showOtp} onClose={() => setShowOtp(false)} title={isClient ? 'Share OTP with Rider' : 'Enter Delivery OTP'}>
         <div className="space-y-4 text-center">
           {isClient ? (
-            <p className="text-gray-600 font-sans text-sm">Check your email for the 4-digit OTP. Share it with the rider when you receive your item.</p>
+            <p className="text-gray-600 text-sm">Check your email for the 4-digit OTP. Share it with the rider when you receive your item.</p>
           ) : (
             <>
-              <p className="text-gray-600 font-sans text-sm">Ask the client for the 4-digit OTP from their email.</p>
+              <p className="text-gray-600 text-sm">Ask the client for the 4-digit OTP from their email.</p>
               <div className="flex gap-2 justify-center">
                 {otpInput.map((d, i) => (
                   <input key={i} ref={el => { otpRefs.current[i] = el }}
-                    className="w-14 h-16 text-center text-2xl font-display font-bold border-2 border-gray-200 rounded-xl focus:border-brand focus:outline-none"
+                    className="w-14 h-16 text-center text-2xl font-extrabold border-2 border-gray-200 rounded-xl focus:border-brand focus:outline-none"
                     maxLength={1} value={d} onChange={e => handleOtpChange(i, e.target.value)} />
                 ))}
               </div>
@@ -495,17 +561,45 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         </div>
       </Modal>
 
-      <Modal open={showPhotoUpload} onClose={() => setShowPhotoUpload(false)} title="Upload Item Photo">
+      <Modal open={showPhotoUpload} onClose={() => setShowPhotoUpload(false)} title="Item Photos & Actual Price">
         <div className="space-y-4">
-          <input type="file" accept="image/*" capture="environment" className="w-full text-sm font-sans"
-            onChange={e => setPhotoFile(e.target.files?.[0] || null)} />
-          {photoFile && <img src={URL.createObjectURL(photoFile)} alt="Preview" className="rounded-xl w-full max-h-48 object-cover" />}
-          <Input label="Actual price paid (₹)" type="number" placeholder="195" value={actualPrice} onChange={e => setActualPrice(e.target.value)} />
-          <Button className="w-full" onClick={handleItemPurchased} loading={actionLoading === 'purchased'} disabled={!photoFile || !actualPrice}>
-            Send Photo to Client
+          <input type="file" accept="image/*" capture="environment" multiple className="w-full text-sm"
+            onChange={e => {
+              const files = Array.from(e.target.files || [])
+              setPhotoFiles(prev => [...prev, ...files])
+            }} />
+          {photoFiles.length > 0 && (
+            <div className="grid grid-cols-2 gap-2">
+              {photoFiles.map((f, i) => (
+                <div key={i} className="relative">
+                  <img src={URL.createObjectURL(f)} alt={`Preview ${i + 1}`} className="rounded-xl w-full h-32 object-cover" />
+                  <button onClick={() => setPhotoFiles(prev => prev.filter((_, j) => j !== i))}
+                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center">×</button>
+                </div>
+              ))}
+            </div>
+          )}
+          <Input label="Actual price paid (₹)" type="number" placeholder={`Expected: ${order?.expectedPrice || ''}`} value={actualPrice} onChange={e => setActualPrice(e.target.value)} />
+          {actualPrice && order && (
+            <div className="p-2 bg-gray-50 rounded-lg text-xs text-gray-600">
+              {parseFloat(actualPrice) !== order.expectedPrice && (
+                <p>Price differs from expected (₹{order.expectedPrice}). Client will see updated total.</p>
+              )}
+            </div>
+          )}
+          <Button className="w-full" onClick={handleItemPurchased} loading={actionLoading === 'purchased'} disabled={photoFiles.length === 0 || !actualPrice}>
+            📸 Send to Client for Approval
           </Button>
         </div>
       </Modal>
+
+      <StripePaymentModal
+        open={paymentModal.open}
+        onClose={() => setPaymentModal({ open: false, clientSecret: '', amount: 0 })}
+        clientSecret={paymentModal.clientSecret}
+        amount={paymentModal.amount}
+        onSuccess={handlePaymentSuccess}
+      />
     </div>
   )
 }

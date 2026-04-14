@@ -17,7 +17,7 @@ export const Modal = ({ open, onClose, title, children, size = 'md' }: ModalProp
       <div className={cn('relative bg-white rounded-2xl shadow-2xl w-full animate-slide-up', widths[size])}>
         {title && (
           <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
-            <h2 className="font-display font-bold text-lg text-navy">{title}</h2>
+            <h2 className="font-extrabold text-lg text-navy">{title}</h2>
             <button onClick={onClose} className="p-1.5 rounded-xl hover:bg-gray-100 text-gray-500 transition-colors"><X className="w-4 h-4" /></button>
           </div>
         )}

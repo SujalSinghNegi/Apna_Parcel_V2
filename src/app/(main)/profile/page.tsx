@@ -56,19 +56,19 @@ export default function ProfilePage() {
   const progress = nextLevel ? Math.min((user.completedOrders / nextLevel) * 100, 100) : 100
 
   return (
-    <div className="page-container max-w-2xl mx-auto space-y-4">
+    <div className="page-container max-w-2xl mx-auto space-y-5 animate-fade-in">
       {/* Profile card */}
       <Card>
         <CardContent className="py-6 text-center">
           <div className="relative inline-block mb-4">
             <Avatar src={user.profilePhoto} name={user.name} size="xl" />
-            <label className="absolute -bottom-1 -right-1 w-7 h-7 bg-brand rounded-full flex items-center justify-center cursor-pointer shadow-md hover:bg-brand-500 transition-colors">
-              <Camera className="w-3.5 h-3.5 text-white" />
+            <label className="absolute -bottom-1 -right-1 w-8 h-8 bg-gradient-to-br from-brand to-brand-600 rounded-full flex items-center justify-center cursor-pointer shadow-lg shadow-brand/30 hover:scale-110 transition-transform">
+              <Camera className="w-4 h-4 text-white" />
               <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} disabled={uploading} />
             </label>
           </div>
-          <h1 className="text-xl font-display font-bold text-navy">{user.name}</h1>
-          <p className="text-sm text-gray-500 font-sans mt-0.5">{user.email}</p>
+          <h1 className="text-xl font-extrabold text-navy">{user.name}</h1>
+          <p className="text-sm text-gray-400 font-medium mt-0.5">{user.email}</p>
           <div className="flex items-center justify-center gap-2 mt-2">
             <TrustBadge level={user.trustLevel} />
             {user.isVerified && <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-green-50 text-green-700 text-xs font-semibold border border-green-200"><Shield className="w-3 h-3" />Verified</span>}
@@ -80,8 +80,8 @@ export default function ProfilePage() {
               {Array.from({ length: 5 }).map((_, i) => (
                 <Star key={i} className={`w-4 h-4 ${i < Math.round(user.rating) ? 'text-amber-400 fill-amber-400' : 'text-gray-200'}`} />
               ))}
-              <span className="text-sm font-bold font-display ml-1">{user.rating.toFixed(1)}</span>
-              <span className="text-xs text-gray-400 font-sans">({user.ratingCount})</span>
+              <span className="text-sm font-bold ml-1">{user.rating.toFixed(1)}</span>
+              <span className="text-xs text-gray-400">({user.ratingCount})</span>
             </div>
           )}
         </CardContent>
@@ -93,20 +93,20 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Award className="w-4 h-4 text-brand" />
-              <span className="font-display font-semibold text-navy text-sm">{TRUST_LEVEL_NAMES[user.trustLevel]}</span>
+              <span className="font-extrabold text-navy text-sm">{TRUST_LEVEL_NAMES[user.trustLevel]}</span>
             </div>
-            <span className="text-xs text-gray-500 font-sans">Max order: {limit === Infinity ? 'Unlimited' : `₹${limit}`}</span>
+            <span className="text-xs text-gray-400 font-medium">Max order: {limit === Infinity ? 'Unlimited' : `₹${limit}`}</span>
           </div>
           <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
             <div className="h-full bg-gradient-to-r from-brand to-brand-400 rounded-full transition-all duration-500" style={{ width: `${progress}%` }} />
           </div>
           {nextLevel && (
-            <p className="text-xs text-gray-500 font-sans mt-1">{user.completedOrders}/{nextLevel} orders to next level</p>
+            <p className="text-xs text-gray-400 font-medium mt-1">{user.completedOrders}/{nextLevel} orders to next level</p>
           )}
           {user.strikeCount > 0 && (
             <div className="mt-3 flex items-center gap-2 bg-amber-50 rounded-xl px-3 py-2">
               <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-              <p className="text-xs text-amber-800 font-sans">{user.strikeCount} strike{user.strikeCount > 1 ? 's' : ''} on account</p>
+              <p className="text-xs text-amber-800 font-medium">{user.strikeCount} strike{user.strikeCount > 1 ? 's' : ''} on account</p>
             </div>
           )}
         </CardContent>
@@ -115,22 +115,22 @@ export default function ProfilePage() {
       {/* Stats */}
       {stats && (
         <div className="grid grid-cols-2 gap-3">
-          <Card>
+          <Card className="card-hover">
             <CardContent className="pt-4">
-              <p className="text-xs font-display font-semibold text-gray-500 uppercase tracking-wide mb-2">As Client</p>
-              <p className="text-2xl font-display font-bold text-navy">{stats.asClient?.ordersPlaced || 0}</p>
-              <p className="text-xs text-gray-500 font-sans">Orders placed</p>
-              <p className="text-lg font-display font-bold text-brand mt-1">{fmt.currency(stats.asClient?.totalSpent || 0)}</p>
-              <p className="text-xs text-gray-500 font-sans">Total spent</p>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">As Client</p>
+              <p className="text-2xl font-extrabold text-navy">{stats.asClient?.ordersPlaced || 0}</p>
+              <p className="text-xs text-gray-400 font-medium">Orders placed</p>
+              <p className="text-lg font-extrabold text-brand mt-1">{fmt.currency(stats.asClient?.totalSpent || 0)}</p>
+              <p className="text-xs text-gray-400 font-medium">Total spent</p>
             </CardContent>
           </Card>
-          <Card>
+          <Card className="card-hover">
             <CardContent className="pt-4">
-              <p className="text-xs font-display font-semibold text-gray-500 uppercase tracking-wide mb-2">As Rider</p>
-              <p className="text-2xl font-display font-bold text-navy">{stats.asRider?.deliveriesCompleted || 0}</p>
-              <p className="text-xs text-gray-500 font-sans">Deliveries</p>
-              <p className="text-lg font-display font-bold text-green-600 mt-1">{fmt.currency(stats.asRider?.totalEarned || 0)}</p>
-              <p className="text-xs text-gray-500 font-sans">Total earned</p>
+              <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">As Rider</p>
+              <p className="text-2xl font-extrabold text-navy">{stats.asRider?.deliveriesCompleted || 0}</p>
+              <p className="text-xs text-gray-400 font-medium">Deliveries</p>
+              <p className="text-lg font-extrabold text-green-600 mt-1">{fmt.currency(stats.asRider?.totalEarned || 0)}</p>
+              <p className="text-xs text-gray-400 font-medium">Total earned</p>
             </CardContent>
           </Card>
         </div>
@@ -139,7 +139,7 @@ export default function ProfilePage() {
       {/* Edit Profile */}
       <Card>
         <CardHeader className="flex flex-row items-center justify-between pb-2">
-          <h2 className="font-display font-semibold text-navy">Edit Profile</h2>
+          <h2 className="font-extrabold text-navy">Edit Profile</h2>
           {!editing && <Button size="sm" variant="outline" onClick={() => setEditing(true)}>Edit</Button>}
         </CardHeader>
         <CardContent className="pt-0 space-y-3">
@@ -153,8 +153,8 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-2 gap-3">
                     <Input label="Branch" value={form.branch} onChange={e => setForm(p => ({ ...p, branch: e.target.value }))} />
                     <div className="space-y-1">
-                      <label className="block text-sm font-semibold text-navy-700 font-display">Year</label>
-                      <select className="w-full rounded-xl border-2 border-gray-200 px-3 py-3 text-sm font-sans focus:border-brand focus:outline-none"
+                      <label className="block text-sm font-bold text-navy-700">Year</label>
+                      <select className="w-full rounded-xl border-2 border-gray-200 px-3 py-3 text-sm focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 transition-all"
                         value={form.yearOfStudy} onChange={e => setForm(p => ({ ...p, yearOfStudy: e.target.value }))}>
                         <option value="">Select</option>
                         {['1ST','2ND','3RD','4TH','OTHER'].map(y => <option key={y}>{y}</option>)}
@@ -177,9 +177,9 @@ export default function ProfilePage() {
                 ...(user.collegeName ? [{ label: 'College', val: user.collegeName }] : []),
                 ...(user.branch ? [{ label: 'Branch', val: user.branch }] : []),
               ].map(f => (
-                <div key={f.label} className="flex justify-between py-2 border-b border-gray-50 last:border-0">
-                  <span className="text-sm text-gray-500 font-sans">{f.label}</span>
-                  <span className="text-sm font-semibold font-display text-navy">{f.val}</span>
+                <div key={f.label} className="flex justify-between py-2.5 border-b border-gray-50 last:border-0">
+                  <span className="text-sm text-gray-400 font-medium">{f.label}</span>
+                  <span className="text-sm font-bold text-navy">{f.val}</span>
                 </div>
               ))}
             </div>

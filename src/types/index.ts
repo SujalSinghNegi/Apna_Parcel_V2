@@ -1,6 +1,6 @@
 export type UserType = 'STUDENT' | 'LOCAL_PERSON' | 'STAFF_FACULTY';
 export type TrustLevel = 'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3' | 'LEVEL_4';
-export type OrderStatus = 'PENDING' | 'ACCEPTED' | 'RIDER_LEFT' | 'AT_SHOP' | 'ITEM_PURCHASED' | 'PHOTO_APPROVED' | 'DELIVERING' | 'ARRIVED' | 'DELIVERED' | 'CANCELLED' | 'DISPUTED' | 'ITEM_NOT_FOUND';
+export type OrderStatus = 'PENDING' | 'ACCEPTED' | 'RIDER_LEFT' | 'AT_SHOP' | 'ITEM_PURCHASED' | 'PHOTO_APPROVED' | 'PAID' | 'PAID' | 'DELIVERING' | 'ARRIVED' | 'DELIVERED' | 'CANCELLED' | 'DISPUTED' | 'ITEM_NOT_FOUND';
 export type ShopMode = 'SINGLE_SHOP' | 'MULTIPLE_SHOPS' | 'ENTIRE_AREA' | 'URGENT';
 export type PaymentStatus = 'PENDING' | 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED' | 'PARTIALLY_REFUNDED' | 'FAILED' | 'CANCELLED';
 export type ComplaintCategory = 'WRONG_ITEM' | 'ITEM_DAMAGED' | 'RIDER_MISBEHAVIOUR' | 'PAYMENT_ISSUE' | 'REFUND_NOT_RECEIVED' | 'OTHER';
@@ -36,7 +36,7 @@ export interface Order {
   baseFee: number; weightFee: number; distanceFee: number;
   modeFee: number; deliveryFee: number; platformFee: number;
   tip: number; totalAmount: number; weightKg: number; distanceKm: number;
-  status: OrderStatus; purchasedPhotoUrl?: string; photoApproved?: boolean;
+  status: OrderStatus; purchasedPhotoUrl?: string; purchasedPhotoUrls?: string[]; purchasedPhotoUrls?: string[]; photoApproved?: boolean;
   declaredEtaMinutes?: number; riderAcceptedAt?: string; riderLeftAt?: string;
   arrivedAt?: string; deliveredAt?: string; cancelledAt?: string;
   cancelReason?: string; cancelledBy?: string; travelCompensation?: number;
@@ -110,8 +110,8 @@ export const TRUST_LEVEL_NAMES: Record<TrustLevel, string> = {
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   PENDING: 'Searching for Rider', ACCEPTED: 'Rider Found',
   RIDER_LEFT: 'Rider On The Way', AT_SHOP: 'At Shop',
-  ITEM_PURCHASED: 'Photo Sent', PHOTO_APPROVED: 'Photo Approved',
-  DELIVERING: 'Delivering', ARRIVED: 'Rider Arrived',
+  ITEM_PURCHASED: 'Photo Sent', PHOTO_APPROVED: 'Awaiting Payment',
+  PAID: 'Payment Received', DELIVERING: 'Delivering', ARRIVED: 'Rider Arrived',
   DELIVERED: 'Delivered', CANCELLED: 'Cancelled',
   DISPUTED: 'Under Review', ITEM_NOT_FOUND: 'Item Not Found'
 };
@@ -123,6 +123,7 @@ export const STATUS_COLORS: Record<OrderStatus, string> = {
   AT_SHOP: 'bg-purple-100 text-purple-800',
   ITEM_PURCHASED: 'bg-orange-100 text-orange-800',
   PHOTO_APPROVED: 'bg-teal-100 text-teal-800',
+  PAID: 'bg-emerald-100 text-emerald-800',
   DELIVERING: 'bg-cyan-100 text-cyan-800',
   ARRIVED: 'bg-lime-100 text-lime-800',
   DELIVERED: 'bg-green-100 text-green-800',

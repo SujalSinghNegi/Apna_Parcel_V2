@@ -64,25 +64,25 @@ export default function NewOrderPage() {
   }
 
   return (
-    <div className="page-container max-w-2xl mx-auto space-y-4">
+    <div className="page-container max-w-2xl mx-auto space-y-5 animate-fade-in">
       <div className="flex items-center gap-3">
-        <div className="w-10 h-10 bg-brand rounded-2xl flex items-center justify-center">
-          <Package className="w-5 h-5 text-white" />
+        <div className="w-12 h-12 bg-gradient-to-br from-brand to-brand-600 rounded-2xl flex items-center justify-center shadow-lg shadow-brand/20">
+          <Package className="w-6 h-6 text-white" />
         </div>
         <div>
-          <h1 className="text-2xl font-display font-bold text-navy">Place Order</h1>
-          <p className="text-sm text-gray-500 font-sans">Tell us what you need from town</p>
+          <h1 className="text-2xl font-extrabold text-navy">Place Order</h1>
+          <p className="text-sm text-gray-400 font-medium">Tell us what you need from town</p>
         </div>
       </div>
 
       {/* Item Details */}
       <Card>
-        <CardHeader><h2 className="font-display font-semibold text-navy">Item Details</h2></CardHeader>
+        <CardHeader><h2 className="font-extrabold text-navy">Item Details</h2></CardHeader>
         <CardContent className="space-y-4 pt-0">
           <Input label="What do you need? *" placeholder="e.g. Rice 2kg, Medicines, Notebook..." value={form.itemName} onChange={e => setF('itemName', e.target.value)} />
           <div className="space-y-1">
-            <label className="block text-sm font-semibold text-navy-700 font-display">Description (optional)</label>
-            <textarea className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm font-sans focus:border-brand focus:outline-none resize-none"
+            <label className="block text-sm font-bold text-navy-700">Description (optional)</label>
+            <textarea className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/10 resize-none transition-all"
               rows={2} placeholder="Brand, size, color, or any specific details..."
               value={form.itemDescription} onChange={e => setF('itemDescription', e.target.value)} />
           </div>
@@ -96,7 +96,7 @@ export default function NewOrderPage() {
 
       {/* Shop Details */}
       <Card>
-        <CardHeader><h2 className="font-display font-semibold text-navy">Shop Details</h2></CardHeader>
+        <CardHeader><h2 className="font-extrabold text-navy">Shop Details</h2></CardHeader>
         <CardContent className="space-y-4 pt-0">
           <div className="grid grid-cols-2 gap-3">
             <Input label="Shop Name" placeholder="Sharma Store" icon={<Store className="w-4 h-4" />} value={form.shopName} onChange={e => setF('shopName', e.target.value)} />
@@ -105,7 +105,7 @@ export default function NewOrderPage() {
           <Input label="Shop Location" placeholder="Main Market, Dwarahat" icon={<MapPin className="w-4 h-4" />} value={form.shopLocation} onChange={e => setF('shopLocation', e.target.value)} />
 
           <div className="space-y-1">
-            <label className="block text-sm font-semibold text-navy-700 font-display">Shop Mode</label>
+            <label className="block text-sm font-bold text-navy-700">Shop Mode</label>
             <div className="grid grid-cols-2 gap-2">
               {SHOP_MODES.map(m => (
                 <button key={m.value} onClick={() => setF('shopMode', m.value)}
@@ -113,9 +113,9 @@ export default function NewOrderPage() {
                     form.shopMode === m.value ? 'border-brand bg-brand-50' : 'border-gray-100 bg-gray-50 hover:border-gray-200')}>
                   <span className="text-lg mt-0.5">{m.emoji}</span>
                   <div>
-                    <p className={cn('text-xs font-bold font-display', form.shopMode === m.value ? 'text-brand' : 'text-navy')}>{m.label}</p>
-                    <p className="text-[11px] text-gray-500 font-sans">{m.desc}</p>
-                    <p className={cn('text-[11px] font-semibold mt-0.5', form.shopMode === m.value ? 'text-brand' : 'text-gray-400')}>{m.fee}</p>
+                    <p className={cn('text-xs font-bold', form.shopMode === m.value ? 'text-brand' : 'text-navy')}>{m.label}</p>
+                    <p className="text-[11px] text-gray-500">{m.desc}</p>
+                    <p className={cn('text-[11px] font-bold mt-0.5', form.shopMode === m.value ? 'text-brand' : 'text-gray-400')}>{m.fee}</p>
                   </div>
                 </button>
               ))}
@@ -126,12 +126,12 @@ export default function NewOrderPage() {
 
       {/* Tip */}
       <Card>
-        <CardHeader><h2 className="font-display font-semibold text-navy">Add a Tip 🙏</h2></CardHeader>
+        <CardHeader><h2 className="font-extrabold text-navy">Add a Tip 🙏</h2></CardHeader>
         <CardContent className="pt-0">
           <div className="flex gap-2 mb-3">
             {[5, 10, 20, 50].map(t => (
               <button key={t} onClick={() => setF('tip', String(t))}
-                className={cn('flex-1 py-2 rounded-xl text-sm font-bold font-display border-2 transition-all',
+                className={cn('flex-1 py-2 rounded-xl text-sm font-extrabold border-2 transition-all',
                   parseInt(form.tip) === t ? 'border-brand bg-brand text-white' : 'border-gray-200 text-navy hover:border-brand')}>
                 ₹{t}
               </button>
@@ -143,9 +143,9 @@ export default function NewOrderPage() {
 
       {/* Fee Summary */}
       {price > 0 && (
-        <Card className="border-brand/20 bg-brand-50/30">
-          <CardContent className="py-4 space-y-2">
-            <h3 className="font-display font-bold text-navy text-sm mb-3">Order Summary</h3>
+        <Card className="border-brand/20 bg-gradient-to-br from-brand-50/40 to-orange-50/40">
+          <CardContent className="py-5 space-y-2">
+            <h3 className="font-extrabold text-navy text-sm mb-3">Order Summary</h3>
             {[
               { label: 'Item price', val: fmt.currency(price) },
               { label: `Base fee`, val: fmt.currency(baseFee) },
@@ -155,18 +155,18 @@ export default function NewOrderPage() {
               { label: 'Platform fee (8%, max ₹50)', val: fmt.currency(platformFee) },
               { label: 'Tip', val: fmt.currency(tip) },
             ].map(r => (
-              <div key={r.label} className="flex justify-between text-sm font-sans text-gray-600">
+              <div key={r.label} className="flex justify-between text-sm text-gray-600">
                 <span>{r.label}</span><span>{r.val}</span>
               </div>
             ))}
-            <div className="border-t border-gray-200 pt-2 flex justify-between font-display font-bold text-navy">
-              <span>Total</span><span className="text-brand text-lg">{fmt.currency(total)}</span>
+            <div className="border-t border-gray-200 pt-3 flex justify-between font-extrabold text-navy">
+              <span>Total</span><span className="text-brand text-xl">{fmt.currency(total)}</span>
             </div>
           </CardContent>
         </Card>
       )}
 
-      <Button className="w-full" size="lg" onClick={handleSubmit} loading={loading} disabled={!form.itemName || !form.expectedPrice}>
+      <Button className="w-full shadow-lg shadow-brand/20" size="lg" onClick={handleSubmit} loading={loading} disabled={!form.itemName || !form.expectedPrice}>
         Place Order — {price > 0 ? fmt.currency(total) : '₹0'} <Package className="w-4 h-4" />
       </Button>
     </div>

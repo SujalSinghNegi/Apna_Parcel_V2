@@ -31,13 +31,13 @@ export default function AdminVendorsPage() {
 
   return (
     <div className="page-container max-w-4xl mx-auto space-y-4">
-      <h1 className="text-2xl font-display font-bold text-navy">Pending Vendor Approvals</h1>
+      <h1 className="text-2xl font-extrabold text-navy">Pending Vendor Approvals</h1>
       {loading ? (
         <div className="flex justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-brand" /></div>
       ) : vendors.length === 0 ? (
         <Card><CardContent className="py-12 text-center">
           <Store className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-          <p className="font-display text-gray-400">No pending vendor registrations</p>
+          <p className="text-gray-400">No pending vendor registrations</p>
         </CardContent></Card>
       ) : (
         <div className="space-y-3">
@@ -46,11 +46,11 @@ export default function AdminVendorsPage() {
               <CardContent className="py-4 flex items-center gap-3">
                 <div className="w-12 h-12 bg-brand-50 rounded-2xl flex items-center justify-center text-2xl shrink-0">🏪</div>
                 <div className="flex-1 min-w-0">
-                  <p className="font-display font-bold text-navy">{v.shopName}</p>
-                  <p className="text-xs text-gray-500 font-sans">{v.ownerName} · {v.category}</p>
+                  <p className="font-extrabold text-navy">{v.shopName}</p>
+                  <p className="text-xs text-gray-500">{v.ownerName} · {v.category}</p>
                   <div className="flex items-center gap-3 mt-1">
-                    {v.locationName && <div className="flex items-center gap-1"><MapPin className="w-3 h-3 text-gray-400" /><p className="text-xs text-gray-500 font-sans">{v.locationName}</p></div>}
-                    <div className="flex items-center gap-1"><Phone className="w-3 h-3 text-gray-400" /><p className="text-xs text-gray-500 font-sans">{v.phone}</p></div>
+                    {v.locationName && <div className="flex items-center gap-1"><MapPin className="w-3 h-3 text-gray-400" /><p className="text-xs text-gray-500">{v.locationName}</p></div>}
+                    <div className="flex items-center gap-1"><Phone className="w-3 h-3 text-gray-400" /><p className="text-xs text-gray-500">{v.phone}</p></div>
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">

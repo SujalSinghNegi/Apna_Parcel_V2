@@ -60,23 +60,23 @@ export default function NewComplaintPage() {
 
   return (
     <div className="page-container max-w-2xl mx-auto space-y-4">
-      <h1 className="text-2xl font-display font-bold text-navy">Raise a Complaint</h1>
+      <h1 className="text-2xl font-extrabold text-navy">Raise a Complaint</h1>
 
       <Card>
-        <CardHeader><h2 className="font-display font-semibold text-navy">Select Order</h2></CardHeader>
+        <CardHeader><h2 className="font-bold text-navy">Select Order</h2></CardHeader>
         <CardContent className="pt-0">
           {orders.length === 0 ? (
-            <p className="text-sm text-gray-500 font-sans">No eligible orders found. Complaints can only be raised for delivered or cancelled orders.</p>
+            <p className="text-sm text-gray-500">No eligible orders found. Complaints can only be raised for delivered or cancelled orders.</p>
           ) : (
             <div className="space-y-2">
               {orders.map(o => (
                 <button key={o.id} onClick={() => setForm(p => ({ ...p, orderId: o.id }))}
                   className={`w-full flex items-center justify-between p-3 rounded-xl border-2 text-left transition-all ${form.orderId === o.id ? 'border-brand bg-brand-50' : 'border-gray-100 hover:border-gray-200'}`}>
                   <div>
-                    <p className={`text-sm font-semibold font-display ${form.orderId === o.id ? 'text-brand' : 'text-navy'}`}>{o.itemName}</p>
-                    <p className="text-xs text-gray-500 font-sans">#{o.id.slice(-8).toUpperCase()} · ₹{o.totalAmount}</p>
+                    <p className={`text-sm font-bold ${form.orderId === o.id ? 'text-brand' : 'text-navy'}`}>{o.itemName}</p>
+                    <p className="text-xs text-gray-500">#{o.id.slice(-8).toUpperCase()} · ₹{o.totalAmount}</p>
                   </div>
-                  <span className="text-xs font-sans text-gray-500">{o.status}</span>
+                  <span className="text-xs text-gray-500">{o.status}</span>
                 </button>
               ))}
             </div>
@@ -85,15 +85,15 @@ export default function NewComplaintPage() {
       </Card>
 
       <Card>
-        <CardHeader><h2 className="font-display font-semibold text-navy">Category</h2></CardHeader>
+        <CardHeader><h2 className="font-bold text-navy">Category</h2></CardHeader>
         <CardContent className="pt-0 grid grid-cols-1 gap-2">
           {CATEGORIES.map(cat => (
             <button key={cat.value} onClick={() => setForm(p => ({ ...p, category: cat.value }))}
               className={`flex items-center gap-3 p-3 rounded-xl border-2 text-left transition-all ${form.category === cat.value ? 'border-brand bg-brand-50' : 'border-gray-100 hover:border-gray-200'}`}>
               <span className="text-lg">{cat.label.split(' ')[0]}</span>
               <div>
-                <p className={`text-sm font-semibold font-display ${form.category === cat.value ? 'text-brand' : 'text-navy'}`}>{cat.label.split(' ').slice(1).join(' ')}</p>
-                <p className="text-xs text-gray-500 font-sans">{cat.desc}</p>
+                <p className={`text-sm font-bold ${form.category === cat.value ? 'text-brand' : 'text-navy'}`}>{cat.label.split(' ').slice(1).join(' ')}</p>
+                <p className="text-xs text-gray-500">{cat.desc}</p>
               </div>
             </button>
           ))}
@@ -101,13 +101,13 @@ export default function NewComplaintPage() {
       </Card>
 
       <Card>
-        <CardHeader><h2 className="font-display font-semibold text-navy">Description</h2></CardHeader>
+        <CardHeader><h2 className="font-bold text-navy">Description</h2></CardHeader>
         <CardContent className="pt-0 space-y-3">
           <div className="space-y-1">
-            <textarea className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm font-sans focus:border-brand focus:outline-none resize-none"
+            <textarea className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm focus:border-brand focus:outline-none resize-none"
               rows={5} placeholder="Describe what went wrong in detail. The more specific, the faster we can resolve it..."
               value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} />
-            <p className={`text-xs font-sans ${form.description.length < 20 ? 'text-amber-600' : 'text-green-600'}`}>
+            <p className={`text-xs ${form.description.length < 20 ? 'text-amber-600' : 'text-green-600'}`}>
               {form.description.length}/1000 characters {form.description.length < 20 ? `(${20 - form.description.length} more needed)` : '✓'}
             </p>
           </div>
@@ -115,9 +115,9 @@ export default function NewComplaintPage() {
       </Card>
 
       <Card>
-        <CardHeader><h2 className="font-display font-semibold text-navy">Evidence (optional)</h2></CardHeader>
+        <CardHeader><h2 className="font-bold text-navy">Evidence (optional)</h2></CardHeader>
         <CardContent className="pt-0 space-y-3">
-          <p className="text-sm text-gray-500 font-sans">Upload photos or videos (MP4, MOV) of damaged goods. Up to 4 files.</p>
+          <p className="text-sm text-gray-500">Upload photos or videos (MP4, MOV) of damaged goods. Up to 4 files.</p>
           {files.length > 0 && (
             <div className="grid grid-cols-2 gap-2">
               {files.map((f, i) => (
@@ -126,7 +126,7 @@ export default function NewComplaintPage() {
                     <img src={URL.createObjectURL(f)} alt="" className="w-full h-24 object-cover rounded-xl" />
                   ) : (
                     <div className="w-full h-24 bg-gray-100 rounded-xl flex items-center justify-center">
-                      <p className="text-xs text-gray-500 font-sans text-center px-2">{f.name}</p>
+                      <p className="text-xs text-gray-500 text-center px-2">{f.name}</p>
                     </div>
                   )}
                   <button onClick={() => setFiles(p => p.filter((_, j) => j !== i))}
@@ -141,7 +141,7 @@ export default function NewComplaintPage() {
             <button onClick={() => fileRef.current?.click()}
               className="w-full h-20 border-2 border-dashed border-gray-200 rounded-xl flex flex-col items-center justify-center gap-1 text-gray-400 hover:border-brand hover:text-brand transition-colors">
               <Upload className="w-5 h-5" />
-              <span className="text-xs font-sans">Add photo or video</span>
+              <span className="text-xs">Add photo or video</span>
             </button>
           )}
           <input ref={fileRef} type="file" accept="image/*,video/mp4,video/quicktime,video/webm" multiple className="hidden" onChange={addFile} />

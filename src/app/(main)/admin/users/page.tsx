@@ -80,16 +80,16 @@ export default function AdminUsersPage() {
 
   return (
     <div className="page-container max-w-4xl mx-auto space-y-4">
-      <h1 className="text-2xl font-display font-bold text-navy">Manage Users</h1>
+      <h1 className="text-2xl font-extrabold text-navy">Manage Users</h1>
 
       <div className="flex gap-2">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <input className="w-full pl-9 pr-4 py-2.5 rounded-xl border-2 border-gray-200 text-sm font-sans focus:border-brand focus:outline-none"
+          <input className="w-full pl-9 pr-4 py-2.5 rounded-xl border-2 border-gray-200 text-sm focus:border-brand focus:outline-none"
             placeholder="Search by name or email..." value={search} onChange={e => setSearch(e.target.value)}
             onKeyDown={e => e.key === 'Enter' && fetch()} />
         </div>
-        <select className="rounded-xl border-2 border-gray-200 px-3 py-2.5 text-sm font-sans focus:border-brand focus:outline-none"
+        <select className="rounded-xl border-2 border-gray-200 px-3 py-2.5 text-sm focus:border-brand focus:outline-none"
           value={userType} onChange={e => { setUserType(e.target.value); }}>
           <option value="">All types</option>
           <option value="STUDENT">Student</option>
@@ -110,14 +110,14 @@ export default function AdminUsersPage() {
                   <Avatar src={u.profilePhoto} name={u.name} size="md" />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-display font-bold text-navy text-sm">{u.name}</p>
+                      <p className="font-extrabold text-navy text-sm">{u.name}</p>
                       <TrustBadge level={u.trustLevel} />
                       {u.isBanned && <span className="text-xs font-bold text-red-700 bg-red-100 px-2 py-0.5 rounded-full">BANNED</span>}
                       {u.isSuspended && !u.isBanned && <span className="text-xs font-bold text-amber-700 bg-amber-100 px-2 py-0.5 rounded-full">SUSPENDED</span>}
                     </div>
-                    <p className="text-xs text-gray-500 font-sans truncate">{u.email} · {u.userType.replace('_',' ')} · {u.completedOrders} orders</p>
+                    <p className="text-xs text-gray-500 truncate">{u.email} · {u.userType.replace('_',' ')} · {u.completedOrders} orders</p>
                     {u.strikeCount > 0 && (
-                      <p className="text-xs text-amber-700 font-sans mt-0.5">⚠️ {u.strikeCount} strike{u.strikeCount > 1 ? 's' : ''}</p>
+                      <p className="text-xs text-amber-700 mt-0.5">⚠️ {u.strikeCount} strike{u.strikeCount > 1 ? 's' : ''}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-1.5 shrink-0">
@@ -142,15 +142,15 @@ export default function AdminUsersPage() {
                 {expanded === u.id && detail && detail.user?.id === u.id && (
                   <div className="mt-3 pt-3 border-t border-gray-100 animate-fade-in space-y-2">
                     <div className="grid grid-cols-3 gap-2 text-center">
-                      <div className="bg-gray-50 rounded-xl py-2"><p className="text-xs text-gray-500 font-sans">Orders</p><p className="font-bold font-display text-navy">{detail.orderCount}</p></div>
-                      <div className="bg-gray-50 rounded-xl py-2"><p className="text-xs text-gray-500 font-sans">Rating</p><p className="font-bold font-display text-navy">{u.rating > 0 ? u.rating.toFixed(1) : '—'}</p></div>
-                      <div className="bg-gray-50 rounded-xl py-2"><p className="text-xs text-gray-500 font-sans">Strikes</p><p className="font-bold font-display text-navy">{u.strikeCount}</p></div>
+                      <div className="bg-gray-50 rounded-xl py-2"><p className="text-xs text-gray-500">Orders</p><p className="font-extrabold text-navy">{detail.orderCount}</p></div>
+                      <div className="bg-gray-50 rounded-xl py-2"><p className="text-xs text-gray-500">Rating</p><p className="font-extrabold text-navy">{u.rating > 0 ? u.rating.toFixed(1) : '—'}</p></div>
+                      <div className="bg-gray-50 rounded-xl py-2"><p className="text-xs text-gray-500">Strikes</p><p className="font-extrabold text-navy">{u.strikeCount}</p></div>
                     </div>
                     {detail.strikes?.length > 0 && (
                       <div className="bg-amber-50 rounded-xl p-3">
-                        <p className="text-xs font-bold text-amber-800 font-display mb-1">Strike History</p>
+                        <p className="text-xs font-extrabold text-amber-800 mb-1">Strike History</p>
                         {detail.strikes.map((s: any) => (
-                          <p key={s.id} className="text-xs text-amber-700 font-sans">{s.reason} · {fmt.date(s.createdAt)}</p>
+                          <p key={s.id} className="text-xs text-amber-700">{s.reason} · {fmt.date(s.createdAt)}</p>
                         ))}
                       </div>
                     )}
@@ -165,8 +165,8 @@ export default function AdminUsersPage() {
       <Modal open={!!showStrike} onClose={() => setShowStrike(null)} title={`Issue Strike — ${showStrike?.name}`}>
         <div className="space-y-4">
           <div className="space-y-1">
-            <label className="block text-sm font-semibold text-navy-700 font-display">Reason *</label>
-            <select className="w-full rounded-xl border-2 border-gray-200 px-3 py-3 text-sm font-sans focus:border-brand focus:outline-none"
+            <label className="block text-sm font-bold text-navy-700">Reason *</label>
+            <select className="w-full rounded-xl border-2 border-gray-200 px-3 py-3 text-sm focus:border-brand focus:outline-none"
               value={strikeForm.reason} onChange={e => setStrikeForm(p => ({ ...p, reason: e.target.value }))}>
               <option value="">Select reason</option>
               {STRIKE_REASONS.map(r => <option key={r} value={r}>{r.replace(/_/g,' ')}</option>)}
@@ -185,11 +185,11 @@ export default function AdminUsersPage() {
         <div className="space-y-4">
           <div className="flex gap-2">
             <button onClick={() => setBanForm(p => ({ ...p, permanent: false }))}
-              className={cn('flex-1 py-2.5 rounded-xl text-sm font-semibold font-display border-2 transition-all', !banForm.permanent ? 'border-brand bg-brand text-white' : 'border-gray-200 text-gray-600')}>
+              className={cn('flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all', !banForm.permanent ? 'border-brand bg-brand text-white' : 'border-gray-200 text-gray-600')}>
               Suspend
             </button>
             <button onClick={() => setBanForm(p => ({ ...p, permanent: true }))}
-              className={cn('flex-1 py-2.5 rounded-xl text-sm font-semibold font-display border-2 transition-all', banForm.permanent ? 'border-red-600 bg-red-600 text-white' : 'border-gray-200 text-gray-600')}>
+              className={cn('flex-1 py-2.5 rounded-xl text-sm font-bold border-2 transition-all', banForm.permanent ? 'border-red-600 bg-red-600 text-white' : 'border-gray-200 text-gray-600')}>
               Permanent Ban
             </button>
           </div>

@@ -38,16 +38,16 @@ export default function AdminOrdersPage() {
 
   return (
     <div className="page-container max-w-4xl mx-auto space-y-4">
-      <h1 className="text-2xl font-display font-bold text-navy">Manage Orders</h1>
+      <h1 className="text-2xl font-extrabold text-navy">Manage Orders</h1>
 
       <div className="flex gap-2 overflow-x-auto scrollbar-none pb-1">
         <button onClick={() => { setStatus(''); fetch() }}
-          className={`shrink-0 px-3.5 py-2 rounded-full text-sm font-display font-semibold transition-all ${!status ? 'bg-brand text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>
+          className={`shrink-0 px-3.5 py-2 rounded-full text-sm font-bold transition-all ${!status ? 'bg-brand text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>
           All
         </button>
         {ALL_STATUSES.map(s => (
           <button key={s} onClick={() => { setStatus(s); }}
-            className={`shrink-0 px-3.5 py-2 rounded-full text-sm font-display font-semibold transition-all whitespace-nowrap ${status === s ? 'bg-brand text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>
+            className={`shrink-0 px-3.5 py-2 rounded-full text-sm font-bold transition-all whitespace-nowrap ${status === s ? 'bg-brand text-white' : 'bg-white text-gray-600 border border-gray-200'}`}>
             {s.replace(/_/g,' ')}
           </button>
         ))}
@@ -67,10 +67,10 @@ export default function AdminOrdersPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <p className="font-display font-bold text-navy text-sm">{o.itemName}</p>
+                      <p className="font-extrabold text-navy text-sm">{o.itemName}</p>
                       <StatusBadge status={o.status} />
                     </div>
-                    <p className="text-xs text-gray-500 font-sans">
+                    <p className="text-xs text-gray-500">
                       {o.client?.name} → {o.rider?.name || 'No rider'} · {fmt.currency(o.totalAmount)} · {fmt.relative(o.createdAt)}
                     </p>
                   </div>
@@ -91,7 +91,7 @@ export default function AdminOrdersPage() {
           {orders.length === 0 && (
             <Card><CardContent className="py-12 text-center">
               <Package className="w-12 h-12 text-gray-200 mx-auto mb-3" />
-              <p className="font-display text-gray-400">No orders found</p>
+              <p className="text-gray-400">No orders found</p>
             </CardContent></Card>
           )}
         </div>

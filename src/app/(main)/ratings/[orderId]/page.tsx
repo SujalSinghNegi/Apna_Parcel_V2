@@ -54,19 +54,19 @@ export default function RatingsPage({ params }: { params: { orderId: string } })
   return (
     <div className="page-container max-w-md mx-auto space-y-4">
       <div className="text-center">
-        <h1 className="text-2xl font-display font-bold text-navy">Rate Your Experience</h1>
-        <p className="text-sm text-gray-500 font-sans mt-1">Help the community by sharing your honest feedback</p>
+        <h1 className="text-2xl font-extrabold text-navy">Rate Your Experience</h1>
+        <p className="text-sm text-gray-500 mt-1">Help the community by sharing your honest feedback</p>
       </div>
 
       {allScored && (
         <div className="text-center py-4 animate-fade-in">
-          <div className="text-5xl font-display font-bold text-brand">{avg.toFixed(1)}</div>
+          <div className="text-5xl font-extrabold text-brand">{avg.toFixed(1)}</div>
           <div className="flex justify-center gap-1 mt-2">
             {[1,2,3,4,5].map(i => (
               <Star key={i} className={cn('w-5 h-5', i <= Math.round(avg) ? 'text-amber-400 fill-amber-400' : 'text-gray-200')} />
             ))}
           </div>
-          <p className="text-sm text-gray-500 font-sans mt-1">Overall average</p>
+          <p className="text-sm text-gray-500 mt-1">Overall average</p>
         </div>
       )}
 
@@ -76,11 +76,11 @@ export default function RatingsPage({ params }: { params: { orderId: string } })
             <CardContent className="py-4">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <p className="font-display font-semibold text-navy text-sm">{c.label}</p>
-                  <p className="text-xs text-gray-500 font-sans">{c.desc}</p>
+                  <p className="font-bold text-navy text-sm">{c.label}</p>
+                  <p className="text-xs text-gray-500">{c.desc}</p>
                 </div>
                 {scores[c.key as keyof typeof scores] > 0 && (
-                  <span className="text-lg font-display font-bold text-brand">{scores[c.key as keyof typeof scores]}/5</span>
+                  <span className="text-lg font-extrabold text-brand">{scores[c.key as keyof typeof scores]}/5</span>
                 )}
               </div>
               <StarRating value={scores[c.key as keyof typeof scores]}
@@ -92,8 +92,8 @@ export default function RatingsPage({ params }: { params: { orderId: string } })
 
       <Card>
         <CardContent className="py-4">
-          <p className="font-display font-semibold text-navy text-sm mb-2">Comment (optional)</p>
-          <textarea className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm font-sans focus:border-brand focus:outline-none resize-none"
+          <p className="font-bold text-navy text-sm mb-2">Comment (optional)</p>
+          <textarea className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm focus:border-brand focus:outline-none resize-none"
             rows={3} placeholder="Share your experience..." maxLength={500}
             value={comment} onChange={e => setComment(e.target.value)} />
         </CardContent>
