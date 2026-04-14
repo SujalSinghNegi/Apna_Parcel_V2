@@ -162,7 +162,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       await paymentsApi.confirmPayment(id)
       await ordersApi.markPaid(id)
     } catch {}
-    toast.success('Payment successful! Funds held securely until delivery.')
+    toast.success('Payment done! Rider will now purchase the item and deliver it to you.')
     await fetchOrder()
   }
 
@@ -312,62 +312,40 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
       <div className="space-y-2">
         {isClient && (
           <>
-            {/* ITEM_PURCHASED: client sees photos + updated price, approves or rejects */}
-            {order.status === 'ITEM_PURCHASED' && (
-              <div className="space-y-2">
-                {(order.purchasedPhotoUrls?.length ? order.purchasedPhotoUrls : order.purchasedPhotoUrl ? [order.purchasedPhotoUrl] : []).map((url, i) => (
-                  <div key={i} className="rounded-2xl overflow-hidden border-2 border-brand/20">
-                    <img src={url} alt={`Item photo ${i + 1}`} className="w-full max-h-64 object-cover" />
-                  </div>
-                ))}
-                <div className="p-3 bg-brand-50 rounded-xl">
-                  <p className="text-sm font-bold text-navy">Rider bought: {order.itemName}</p>
-                  {order.actualPrice && (
-                    <div className="mt-1 space-y-1">
-                      {order.actualPrice !== order.expectedPrice && (
-                        <p className="text-xs text-gray-500 line-through">Expected: {fmt.currency(order.expectedPrice)}</p>
-                      )}
-                      <p className="text-sm font-extrabold text-brand">Actual Price: {fmt.currency(order.actualPrice)}</p>
-                    </div>
-                  )}
-                  <div className="mt-2 flex justify-between items-center font-extrabold text-navy bg-white rounded-lg px-3 py-2">
-                    <span className="text-sm">Updated Total</span>
-                    <span className="text-brand">{fmt.currency(order.totalAmount)}</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <Button onClick={() => doAction('approve', () => ordersApi.approvePhoto(id))} loading={actionLoading === 'approve'}>
-                    <CheckCircle2 className="w-4 h-4" /> Approve
-                  </Button>
-                  <Button variant="danger" onClick={() => setShowReject(true)}>
-                    <XCircle className="w-4 h-4" /> Reject
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {/* PHOTO_APPROVED: client pays now */}
-            {order.status === 'PHOTO_APPROVED' && !order.payment?.status?.match(/AUTHORIZED|CAPTURED/) && (
+            {/* ACCEPTED: client pays now */}
+            {order.status === 'ACCEPTED' && !order.payment?.status?.match(/AUTHORIZED|CAPTURED/) && (
               <Button className="w-full" size="lg" onClick={handlePay} loading={actionLoading === 'pay'}>
                 💳 Pay {fmt.currency(order.totalAmount)} to Confirm
               </Button>
             )}
 
-            {/* PAID: waiting for rider to deliver */}
+            {/* PAID: payment done, rider will go to shop */}
             {order.status === 'PAID' && (
               <Card className="border-green-200 bg-green-50">
                 <CardContent className="py-3 flex items-center gap-2">
                   <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-                  <p className="text-xs text-green-800">Payment of {fmt.currency(order.totalAmount)} held securely. Waiting for rider to deliver.</p>
+                  <p className="text-xs text-green-800">Payment of {fmt.currency(order.totalAmount)} done ✅ Held securely until delivery. Rider will purchase the item and head to you.</p>
                 </CardContent>
               </Card>
             )}
 
+            {/* RIDER_LEFT: rider is on the way */}
+            {order.status === 'RIDER_LEFT' && (
+              <Card className="border-blue-200 bg-blue-50">
+                <CardContent className="py-3 flex items-center gap-2">
+                  <Package className="w-4 h-4 text-blue-600 shrink-0" />
+                  <p className="text-xs text-blue-800">Rider is on the way with your item! {order.declaredEtaMinutes ? `ETA: ~${order.declaredEtaMinutes} min` : ''}</p>
+                </CardContent>
+              </Card>
+            )}
+
+            {/* ARRIVED: share OTP to confirm delivery */}
             {order.status === 'ARRIVED' && (
               <Button className="w-full" size="lg" onClick={() => setShowOtp(true)}>
                 🔑 Share Delivery OTP
               </Button>
             )}
+
             {order.status === 'DELIVERED' && (
               <Link href={`/ratings/${id}?ratedUserId=${order.riderId}`}>
                 <Button className="w-full" variant="secondary">
@@ -380,72 +358,45 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
 
         {isRider && (
           <>
+            {/* ACCEPTED: waiting for client payment */}
             {order.status === 'ACCEPTED' && (
-              <Button className="w-full" size="lg" onClick={() => doAction('leaving', () => ordersApi.leaving(id))} loading={actionLoading === 'leaving'}>
-                🚴 I Am Leaving Now
-              </Button>
-            )}
-            {order.status === 'RIDER_LEFT' && (
-              <Button className="w-full" onClick={() => doAction('atshop', () => ordersApi.atShop(id))} loading={actionLoading === 'atshop'}>
-                <MapPin className="w-4 h-4" /> Arrived at Shop
-              </Button>
-            )}
-            {order.status === 'AT_SHOP' && (
-              <div className="space-y-2">
-                <Button className="w-full" onClick={() => setShowPhotoUpload(true)}>
-                  <Camera className="w-4 h-4" /> Take Item Photo & Enter Price
-                </Button>
-                <Button variant="outline" className="w-full" onClick={() => doAction('notfound', () => ordersApi.itemNotFound(id))} loading={actionLoading === 'notfound'}>
-                  Item Not Found
-                </Button>
-              </div>
-            )}
-
-            {/* ITEM_PURCHASED: waiting for client to approve */}
-            {order.status === 'ITEM_PURCHASED' && (
               <Card className="border-amber-200 bg-amber-50">
                 <CardContent className="py-3 flex items-center gap-2">
                   <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <p className="text-xs text-amber-800">Waiting for client to approve photos and pay. Actual price: {fmt.currency(order.actualPrice || 0)}</p>
+                  <p className="text-xs text-amber-800">Waiting for client to complete payment before you can proceed.</p>
                 </CardContent>
               </Card>
             )}
 
-            {/* PHOTO_APPROVED: waiting for client payment */}
-            {order.status === 'PHOTO_APPROVED' && (
-              <Card className="border-amber-200 bg-amber-50">
-                <CardContent className="py-3 flex items-center gap-2">
-                  <AlertTriangle className="w-4 h-4 text-amber-600 shrink-0" />
-                  <p className="text-xs text-amber-800">Photos approved! Waiting for client to complete payment.</p>
-                </CardContent>
-              </Card>
-            )}
-
-            {/* PAID: rider picks up and delivers */}
+            {/* PAID: payment received, rider can leave to shop */}
             {order.status === 'PAID' && (
               <div className="space-y-2">
                 <Card className="border-green-200 bg-green-50">
                   <CardContent className="py-3 flex items-center gap-2">
                     <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
-                    <p className="text-xs text-green-800">Payment received! {fmt.currency(order.totalAmount)} held securely in platform.</p>
+                    <p className="text-xs text-green-800">Payment received! {fmt.currency(order.totalAmount)} held securely. Go to the shop, buy the item, and head to the client.</p>
                   </CardContent>
                 </Card>
-                <Button className="w-full" size="lg" onClick={() => doAction('delivering', () => ordersApi.delivering(id))} loading={actionLoading === 'delivering'}>
-                  🏃 Pick Up & Head to Delivery
+                <Button className="w-full" size="lg" onClick={() => doAction('leaving', () => ordersApi.leaving(id))} loading={actionLoading === 'leaving'}>
+                  🚴 I Am Leaving Now
                 </Button>
               </div>
             )}
 
-            {order.status === 'DELIVERING' && (
+            {/* RIDER_LEFT: on the way to client */}
+            {order.status === 'RIDER_LEFT' && (
               <Button className="w-full" size="lg" onClick={() => doAction('arrived', () => ordersApi.arrived(id))} loading={actionLoading === 'arrived'}>
-                <MapPin className="w-4 h-4" /> Arrived at Delivery Location
+                <MapPin className="w-4 h-4" /> Arrived at Client Location
               </Button>
             )}
+
+            {/* ARRIVED: enter OTP from client */}
             {order.status === 'ARRIVED' && (
               <Button className="w-full" size="lg" onClick={() => setShowOtp(true)}>
                 🔑 Enter Client OTP
               </Button>
             )}
+
             {order.status === 'DELIVERED' && (
               <Link href={`/ratings/${id}?ratedUserId=${order.clientId}`}>
                 <Button className="w-full" variant="secondary"><Star className="w-4 h-4" /> Rate Client</Button>
@@ -454,7 +405,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           </>
         )}
 
-        {['PENDING', 'ACCEPTED', 'RIDER_LEFT', 'AT_SHOP'].includes(order.status) && (
+        {['PENDING', 'ACCEPTED'].includes(order.status) && (
           <Button variant="ghost" className="w-full text-red-600 hover:bg-red-50" onClick={() => setShowCancel(true)}>
             Cancel Order
           </Button>
