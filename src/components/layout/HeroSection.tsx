@@ -13,12 +13,12 @@ import {
 } from "lucide-react";
 
 // --- Animation Variants ---
-const fadeUp:Variants = {
+const fadeUp: Variants = {
   hidden: { opacity: 0, y: 40, filter: "blur(10px)" },
   show: { opacity: 1, y: 0, filter: "blur(0px)", transition: { type: "spring", stiffness: 80, damping: 20 } }
 };
 
-const staggerContainer:Variants = {
+const staggerContainer: Variants = {
   hidden: { opacity: 0 },
   show: { opacity: 1, transition: { staggerChildren: 0.1, delayChildren: 0.2 } }
 };
@@ -74,7 +74,7 @@ const AnimatedThreads = () => {
             offsetDistance: ["0%", "100%"]
           }}
           transition={{ duration: 3, ease: "easeInOut", repeat: Infinity, repeatDelay: 1 }}
-          // @ts-ignore - offsetPath is valid CSS but sometimes TS complains
+          // @ts-ignore
           style={{ offsetPath: "path('M -100,200 C 300,100 400,600 900,400 C 1100,300 1300,500 1300,500')" }}
         />
       </svg>
@@ -153,14 +153,15 @@ export const HeroSection = () => {
                 <motion.button 
                   whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="w-full relative group overflow-hidden bg-slate-900 dark:bg-white text-white dark:text-slate-900 font-bold text-lg px-8 py-4 rounded-full flex items-center justify-center gap-3 shadow-2xl shadow-slate-900/20 dark:shadow-white/10"
+                  // ADDED: dark:group-hover:text-white so it contrasts against the hover gradient
+                  className="w-full relative group overflow-hidden bg-slate-900 dark:bg-white text-white dark:text-slate-900 dark:group-hover:text-white font-bold text-lg px-8 py-4 rounded-full flex items-center justify-center gap-3 shadow-2xl shadow-slate-900/20 dark:shadow-white/10 transition-colors"
                 >
                   <span className="relative z-10 flex items-center gap-2">
                     <ShoppingBag className="w-5 h-5" /> Order Now
                   </span>
                   {/* Hover gradient effect */}
                   <div className="absolute inset-0 bg-gradient-to-r from-brand to-mint opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
-                  <span className="relative z-10 hidden group-hover:block text-white ml-2 transition-all">
+                  <span className="relative z-10 hidden group-hover:block ml-2 transition-all">
                     <ArrowRight className="w-5 h-5" />
                   </span>
                 </motion.button>
@@ -168,11 +169,12 @@ export const HeroSection = () => {
 
               <Link href="/auth" className="w-full sm:w-auto">
                 <motion.button 
-                  whileHover={{ scale: 1.05, backgroundColor: "rgba(255,255,255,0.1)" }}
+                  whileHover={{ scale: 1.05 }}
                   whileTap={{ scale: 0.95 }}
-                  className="w-full bg-white/50 dark:bg-slate-800/50 backdrop-blur-md border border-gray-200 dark:border-slate-700 text-slate-800 dark:text-white font-bold text-lg px-8 py-4 rounded-full flex items-center justify-center gap-3 transition-all"
+                  // FIXED: Made the border white in dark mode and cleaned up the hover state
+                  className="w-full bg-white/50 dark:bg-transparent backdrop-blur-md border border-slate-200 dark:border-white/30 hover:dark:bg-white/10 text-slate-800 dark:text-white font-bold text-lg px-8 py-4 rounded-full flex items-center justify-center gap-3 transition-all"
                 >
-                  <Bike className="w-5 h-5 text-brand" /> Deliver & Earn
+                  <Bike className="w-5 h-5 text-brand dark:text-white" /> Deliver & Earn
                 </motion.button>
               </Link>
             </motion.div>
