@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { fmt, cn } from '@/lib/utils'
 import { ShopMode, TRUST_LEVEL_LIMITS, VendorItem, Vendor, ItemRequest } from '@/types'
-import { Package, MapPin, Store, ArrowLeft, Navigation, Search, Loader2, ShoppingBag, Clock, Timer, Check, X, Crown } from 'lucide-react'
+import { Package, MapPin, Store, ArrowLeft, Navigation, Search, Loader2, ShoppingBag, Clock, Timer, Check, X, Crown, Send, Users } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import type { LatLng } from '@/components/ui/MapPicker'
@@ -71,6 +71,8 @@ export default function NewOrderPage() {
 
   // ── Order placed searching overlay ──────────────────────────────────────
   const [searchingOverlay, setSearchingOverlay] = useState<{ show: boolean; orderId: string; shopMode: ShopMode; shopName: string; step: number }>({ show: false, orderId: '', shopMode: 'SINGLE_SHOP', shopName: '', step: 0 })
+  const [broadcastLoading, setBroadcastLoading] = useState(false)
+  const [countdownTick, setCountdownTick] = useState(0) // force re-render for timers
 
   const setF = (k: string, v: string) => setForm(p => ({ ...p, [k]: v }))
 
@@ -213,6 +215,47 @@ export default function NewOrderPage() {
     return () => clearInterval(interval)
   }, [])
 
+  // Countdown tick for pending request timers (every second)
+  useEffect(() => {
+    const hasPending = myRequests.some(r => r.status === 'PENDING')
+    if (!hasPending) return
+    const interval = setInterval(() => setCountdownTick(t => t + 1), 1000)
+    return () => clearInterval(interval)
+  }, [myRequests])
+
+  const getTimeRemaining = (expiresAt: string) => {
+    const diff = new Date(expiresAt).getTime() - Date.now()
+    if (diff <= 0) return { expired: true, minutes: 0, seconds: 0, text: 'Expired' }
+    const minutes = Math.floor(diff / 60000)
+    const seconds = Math.floor((diff % 60000) / 1000)
+    return { expired: false, minutes, seconds, text: `${minutes}:${String(seconds).padStart(2, '0')}` }
+  }
+
+  const handleBroadcastRequest = async (requestId: string) => {
+    setBroadcastLoading(true)
+    try {
+      await vendorsApi.broadcastRequest(requestId)
+      toast.success('Request sent to all vendors!')
+      fetchMyRequests()
+    } catch (e) { toast.error(getErrorMessage(e)) }
+    finally { setBroadcastLoading(false) }
+  }
+
+  const handleLetRiderDecide = (req: ItemRequest) => {
+    setForm(p => ({
+      ...p,
+      itemName: req.itemName,
+      expectedPrice: String(req.maxPrice || ''),
+      shopMode: 'ENTIRE_AREA',
+      vendorId: '',
+      itemRequestId: '',
+      shopName: '',
+      shopLocation: '',
+    }))
+    setSelectedVendorItem(null)
+    toast.success('Switched to "Search Area" mode — rider will find the item (+₹25)')
+  }
+
   const price = parseFloat(form.expectedPrice) || 0
   const weight = parseFloat(form.weightKg) || 0
   const dist = (shopCoords && clientCoords) ? Math.round(haversine(shopCoords, clientCoords) * 10) / 10 : 0
@@ -264,6 +307,7 @@ export default function NewOrderPage() {
 
   // Accepted requests that can be used
   const acceptedRequests = myRequests.filter(r => r.status === 'ACCEPTED')
+  const pendingRequests = myRequests.filter(r => r.status === 'PENDING')
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-32">
@@ -378,6 +422,51 @@ export default function NewOrderPage() {
                   <p className="text-sm font-bold text-green-700 dark:text-green-400">{fmt.currency(req.vendorPrice || 0)}</p>
                 </button>
               ))}
+            </div>
+          )}
+
+          {/* Pending requests with countdown timer */}
+          {pendingRequests.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs font-bold text-amber-600 flex items-center gap-1"><Timer className="w-3 h-3" /> Waiting for vendor response</p>
+              {pendingRequests.map(req => {
+                const remaining = getTimeRemaining(req.expiresAt)
+                return (
+                  <div key={req.id} className="p-3 rounded-xl border border-amber-200 dark:border-amber-500/30 bg-amber-50/50 dark:bg-amber-500/5 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-navy dark:text-white">{req.itemName}</p>
+                        <p className="text-[10px] text-gray-500">{req.vendor?.shopName}</p>
+                      </div>
+                      {!remaining.expired ? (
+                        <div className="flex items-center gap-1.5 bg-amber-100 dark:bg-amber-500/20 px-2.5 py-1 rounded-full">
+                          <Timer className="w-3 h-3 text-amber-600 animate-pulse" />
+                          <span className={cn('text-xs font-bold tabular-nums', remaining.minutes < 1 ? 'text-red-600' : 'text-amber-700 dark:text-amber-400')}>
+                            {remaining.text}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 rounded-full">Timed out</span>
+                      )}
+                    </div>
+                    {/* Show fallback options when expired */}
+                    {remaining.expired && (
+                      <div className="flex gap-2 pt-1">
+                        <button onClick={() => handleBroadcastRequest(req.id)} disabled={broadcastLoading}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-brand text-white text-xs font-bold hover:bg-brand/90 transition-colors disabled:opacity-50">
+                          {broadcastLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                          Send to all vendors
+                        </button>
+                        <button onClick={() => handleLetRiderDecide(req)}
+                          className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-xl bg-gray-800 dark:bg-gray-700 text-white text-xs font-bold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors">
+                          <Users className="w-3 h-3" />
+                          Let rider decide
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           )}
 
@@ -550,18 +639,36 @@ export default function NewOrderPage() {
         <div className="space-y-2 max-h-80 overflow-y-auto">
           {myRequests.length === 0 ? (
             <p className="text-center text-gray-400 text-sm py-6">No requests sent yet</p>
-          ) : myRequests.map(req => (
-            <div key={req.id} className={cn('p-3 rounded-xl border', req.status === 'ACCEPTED' ? 'border-green-200 bg-green-50 dark:bg-green-500/10' : 'border-gray-200 dark:border-gray-700')}>
+          ) : myRequests.map(req => {
+            const remaining = req.status === 'PENDING' ? getTimeRemaining(req.expiresAt) : null
+            return (
+            <div key={req.id} className={cn('p-3 rounded-xl border',
+              req.status === 'ACCEPTED' ? 'border-green-200 bg-green-50 dark:bg-green-500/10' :
+              remaining?.expired ? 'border-red-200 bg-red-50/50 dark:bg-red-500/5' :
+              'border-gray-200 dark:border-gray-700')}>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-bold text-navy dark:text-white text-sm">{req.itemName}</p>
                   <p className="text-xs text-gray-400">{req.vendor?.shopName}</p>
                 </div>
-                <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full',
-                  req.status === 'PENDING' ? 'bg-amber-100 text-amber-700' :
-                  req.status === 'ACCEPTED' ? 'bg-green-100 text-green-700' :
-                  'bg-gray-100 text-gray-500'
-                )}>{req.status}</span>
+                {req.status === 'PENDING' && remaining ? (
+                  !remaining.expired ? (
+                    <div className="flex items-center gap-1 bg-amber-100 dark:bg-amber-500/20 px-2 py-0.5 rounded-full">
+                      <Timer className="w-3 h-3 text-amber-600 animate-pulse" />
+                      <span className={cn('text-[10px] font-bold tabular-nums', remaining.minutes < 1 ? 'text-red-600' : 'text-amber-700')}>
+                        {remaining.text}
+                      </span>
+                    </div>
+                  ) : (
+                    <span className="text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 rounded-full">Timed out</span>
+                  )
+                ) : (
+                  <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full',
+                    req.status === 'ACCEPTED' ? 'bg-green-100 text-green-700' :
+                    req.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                    'bg-gray-100 text-gray-500'
+                  )}>{req.status}</span>
+                )}
               </div>
               {req.status === 'ACCEPTED' && req.vendorPrice && (
                 <div className="mt-2 flex items-center justify-between">
@@ -576,8 +683,22 @@ export default function NewOrderPage() {
                   }}>Use this</Button>
                 </div>
               )}
+              {req.status === 'PENDING' && remaining?.expired && (
+                <div className="flex gap-2 mt-2">
+                  <button onClick={() => handleBroadcastRequest(req.id)} disabled={broadcastLoading}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-brand text-white text-[11px] font-bold hover:bg-brand/90 transition-colors disabled:opacity-50">
+                    {broadcastLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                    All vendors
+                  </button>
+                  <button onClick={() => { handleLetRiderDecide(req); setShowMyRequests(false) }}
+                    className="flex-1 flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-lg bg-gray-800 dark:bg-gray-700 text-white text-[11px] font-bold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors">
+                    <Users className="w-3 h-3" />
+                    Rider decide
+                  </button>
+                </div>
+              )}
             </div>
-          ))}
+          )})}
         </div>
       </Modal>
 
