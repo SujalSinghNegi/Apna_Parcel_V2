@@ -296,7 +296,7 @@ export default function OrderDetailPage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-36">
       {/* ─── Sticky Top Bar ─── */}
-      <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-lg border-b border-gray-100">
+      <div className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-b border-gray-100">
         <div className="max-w-2xl mx-auto flex items-center justify-between px-4 h-14">
           <button onClick={() => router.back()} className="flex items-center gap-2 text-gray-600 hover:text-navy transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -906,7 +906,7 @@ export default function OrderDetailPage() {
 
       {/* Payment confirming overlay */}
       {actionLoading === 'confirming' && (
-        <div className="fixed inset-0 z-50 bg-white/95 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
+        <div className="fixed inset-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
           <div className="w-20 h-20 bg-gradient-to-br from-brand to-brand-600 rounded-3xl flex items-center justify-center shadow-xl shadow-brand/30 mb-6 animate-pulse-soft">
             <Loader2 className="w-10 h-10 text-white animate-spin" />
           </div>

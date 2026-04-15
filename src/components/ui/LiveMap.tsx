@@ -148,7 +148,7 @@ export const LiveMap = ({ orderId, lastKnownLocation, onLocationRef }: LiveMapPr
       <div ref={mapRef} className="w-full h-64 rounded-2xl overflow-hidden z-0" style={{ minHeight: 256 }} />
 
       {/* Status overlay */}
-      <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-white/90 backdrop-blur-sm rounded-full px-3 py-1.5 shadow-md">
+      <div className="absolute top-3 right-3 z-10 flex items-center gap-1.5 bg-white/90 dark:bg-slate-800/90 backdrop-blur-sm rounded-full px-3 py-1.5 shadow-md">
         {connected ? (
           <>
             <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />

@@ -35,7 +35,7 @@ export function NotificationListener() {
           <div
             className={`${
               t.visible ? 'animate-slide-in-right' : 'animate-slide-out-right'
-            } max-w-sm w-full bg-white shadow-2xl rounded-2xl pointer-events-auto border border-gray-100 overflow-hidden`}
+            } max-w-sm w-full bg-white dark:bg-gray-800 shadow-2xl rounded-2xl pointer-events-auto border border-gray-100 dark:border-gray-700 overflow-hidden`}
           >
             <div className="p-4">
               <div className="flex items-start gap-3">
@@ -46,12 +46,12 @@ export function NotificationListener() {
                   <Icon className="w-5 h-5" style={{ color: conf.color }} />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-gray-900">{notification.title}</p>
-                  <p className="text-xs text-gray-500 mt-0.5 line-clamp-2">{notification.message}</p>
+                  <p className="text-sm font-bold text-gray-900 dark:text-gray-100">{notification.title}</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-2">{notification.message}</p>
                 </div>
                 <button
                   onClick={() => toast.dismiss(t.id)}
-                  className="shrink-0 text-gray-400 hover:text-gray-600 transition-colors"
+                  className="shrink-0 text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
                 >
                   <XCircle className="w-5 h-5" />
                 </button>
@@ -66,7 +66,7 @@ export function NotificationListener() {
                 </Link>
               )}
             </div>
-            <div className="h-1 bg-gray-100">
+            <div className="h-1 bg-gray-100 dark:bg-gray-700">
               <div
                 className="h-full rounded-full animate-toast-progress"
                 style={{ backgroundColor: conf.color }}

@@ -115,7 +115,7 @@ export default function RiderPage() {
 
       {/* Suspension warnings */}
       {isRiderBanned && (
-        <Card className="border-red-200 bg-gradient-to-r from-red-50 to-rose-50">
+        <Card className="border-red-200 dark:border-red-900/40 bg-gradient-to-r from-red-50 to-rose-50 dark:from-red-950/30 dark:to-rose-950/30">
           <CardContent className="py-4 flex items-center gap-3">
             <div className="w-10 h-10 bg-red-100 rounded-xl flex items-center justify-center shrink-0">
               <AlertCircle className="w-5 h-5 text-red-600" />
@@ -128,7 +128,7 @@ export default function RiderPage() {
         </Card>
       )}
       {isRiderSuspended && !isRiderBanned && (
-        <Card className="border-amber-200 bg-gradient-to-r from-amber-50 to-yellow-50">
+        <Card className="border-amber-200 dark:border-amber-900/40 bg-gradient-to-r from-amber-50 to-yellow-50 dark:from-amber-950/30 dark:to-yellow-950/30">
           <CardContent className="py-4 flex items-center gap-3">
             <div className="w-10 h-10 bg-amber-100 rounded-xl flex items-center justify-center shrink-0">
               <AlertCircle className="w-5 h-5 text-amber-600" />

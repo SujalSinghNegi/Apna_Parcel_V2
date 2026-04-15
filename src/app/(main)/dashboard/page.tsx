@@ -180,7 +180,7 @@ export default function Dashboard() {
     <div className="page-container space-y-6 animate-fade-in">
       {/* Live refresh indicator */}
       {refreshing && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-white/90 backdrop-blur-md shadow-lg rounded-full px-4 py-2 flex items-center gap-2 animate-fade-in-down border border-gray-100">
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md shadow-lg rounded-full px-4 py-2 flex items-center gap-2 animate-fade-in-down border border-gray-100">
           <Loader2 className="w-3.5 h-3.5 animate-spin text-brand" />
           <span className="text-xs font-bold text-navy-500">Updating...</span>
         </div>

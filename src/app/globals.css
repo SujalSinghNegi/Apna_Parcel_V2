@@ -18,6 +18,12 @@ body {
   color: #1e293b;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+.dark body {
+  background-color: #0f172a;
+  color: #e2e8f0;
 }
 
 /* Smooth scroll */
@@ -28,36 +34,104 @@ html { scroll-behavior: smooth; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: #d1d5db; border-radius: 999px; }
 ::-webkit-scrollbar-thumb:hover { background: #9ca3af; }
+.dark ::-webkit-scrollbar-thumb { background: #475569; }
+.dark ::-webkit-scrollbar-thumb:hover { background: #64748b; }
 
 @layer components {
   .page-container {
     @apply max-w-4xl mx-auto px-4 py-6 md:py-8;
   }
 
-  /* Glass morphism */
-  .glass {
-    @apply bg-white/70 backdrop-blur-xl border border-white/20 shadow-lg;
-  }
+  /* ─── Dark mode section card ─────────────────── */
+  /* Commonly used inline bg-white sections in all pages */
+  .dark .bg-white { background-color: rgb(30 41 59) !important; }
+  .dark .bg-gray-50 { background-color: rgb(15 23 42) !important; }
+  .dark .bg-gray-100 { background-color: rgb(30 41 59) !important; }
+  .dark .border-gray-100 { border-color: rgb(51 65 85 / 0.6) !important; }
+  .dark .border-gray-200 { border-color: rgb(71 85 105 / 0.6) !important; }
+  .dark .text-navy { color: rgb(241 245 249) !important; }
+  .dark .text-navy-500 { color: rgb(203 213 225) !important; }
+  .dark .text-navy-600 { color: rgb(203 213 225) !important; }
+  .dark .text-navy-700 { color: rgb(226 232 240) !important; }
+  .dark .text-navy-400 { color: rgb(148 163 184) !important; }
+  .dark .text-gray-400 { color: rgb(100 116 139) !important; }
+  .dark .text-gray-500 { color: rgb(148 163 184) !important; }
+  .dark .text-gray-600 { color: rgb(203 213 225) !important; }
+  .dark .text-gray-700 { color: rgb(226 232 240) !important; }
+  .dark .text-gray-900 { color: rgb(241 245 249) !important; }
+  .dark .text-gray-300 { color: rgb(148 163 184) !important; }
+  .dark .text-gray-200 { color: rgb(100 116 139) !important; }
+  .dark .shadow-sm { box-shadow: 0 1px 2px rgb(0 0 0 / 0.3) !important; }
+  .dark .shadow-lg { box-shadow: 0 10px 25px rgb(0 0 0 / 0.35) !important; }
+  .dark .shadow-2xl { box-shadow: 0 25px 50px rgb(0 0 0 / 0.4) !important; }
+  .dark .bg-brand-50 { background-color: rgb(255 107 53 / 0.1) !important; }
+  .dark .bg-green-50 { background-color: rgb(34 197 94 / 0.1) !important; }
+  .dark .bg-blue-50 { background-color: rgb(59 130 246 / 0.1) !important; }
+  .dark .bg-red-50 { background-color: rgb(239 68 68 / 0.1) !important; }
+  .dark .bg-amber-50 { background-color: rgb(245 158 11 / 0.1) !important; }
+  .dark .bg-purple-50 { background-color: rgb(168 85 247 / 0.1) !important; }
+  .dark .bg-indigo-50 { background-color: rgb(99 102 241 / 0.1) !important; }
+  .dark .bg-teal-50 { background-color: rgb(20 184 166 / 0.1) !important; }
+  .dark .bg-orange-50 { background-color: rgb(249 115 22 / 0.08) !important; }
+  .dark .bg-navy-50 { background-color: rgb(30 41 59) !important; }
+  .dark .bg-mint-50 { background-color: rgb(16 185 129 / 0.1) !important; }
+  .dark .bg-rose-50 { background-color: rgb(244 63 94 / 0.1) !important; }
+  .dark .bg-mint-100 { background-color: rgb(16 185 129 / 0.15) !important; }
+  .dark .bg-brand-100 { background-color: rgb(255 107 53 / 0.15) !important; }
+  .dark .bg-green-100 { background-color: rgb(34 197 94 / 0.15) !important; }
+  .dark .bg-navy-100 { background-color: rgb(30 45 75 / 0.3) !important; }
+  .dark .bg-amber-100 { background-color: rgb(245 158 11 / 0.15) !important; }
+  .dark .bg-red-100 { background-color: rgb(239 68 68 / 0.15) !important; }
+  .dark .bg-yellow-50 { background-color: rgb(234 179 8 / 0.1) !important; }
 
-  .glass-dark {
-    @apply bg-navy/80 backdrop-blur-xl border border-white/10;
-  }
+  /* Additional dark text overrides */
+  .dark .text-red-800 { color: rgb(252 165 165) !important; }
+  .dark .text-amber-800 { color: rgb(252 211 77) !important; }
+  .dark .text-brand-700 { color: rgb(255 148 97) !important; }
+  .dark .text-navy-800 { color: rgb(226 232 240) !important; }
+  .dark .text-green-800 { color: rgb(134 239 172) !important; }
+  .dark .text-blue-800 { color: rgb(147 197 253) !important; }
+  .dark .text-blue-600 { color: rgb(147 197 253) !important; }
+  .dark .text-teal-600 { color: rgb(45 212 191) !important; }
+  .dark .text-teal-700 { color: rgb(45 212 191) !important; }
+  .dark .text-amber-700 { color: rgb(252 211 77) !important; }
+  .dark .text-lime-600 { color: rgb(163 230 53) !important; }
+  .dark .bg-lime-50 { background-color: rgb(132 204 22 / 0.1) !important; }
+  .dark .border-red-200 { border-color: rgb(239 68 68 / 0.3) !important; }
+  .dark .border-amber-200 { border-color: rgb(245 158 11 / 0.3) !important; }
+  .dark .border-green-200 { border-color: rgb(34 197 94 / 0.3) !important; }
 
-  /* Gradient text */
-  .text-gradient {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-brand to-brand-600;
-  }
+  /* Status text colors stay vivid in dark mode */
+  .dark .text-green-600 { color: rgb(74 222 128) !important; }
+  .dark .text-green-700 { color: rgb(74 222 128) !important; }
+  .dark .text-red-600 { color: rgb(248 113 113) !important; }
+  .dark .text-red-700 { color: rgb(248 113 113) !important; }
+  .dark .text-blue-700 { color: rgb(147 197 253) !important; }
+  .dark .text-amber-600 { color: rgb(252 211 77) !important; }
 
-  .text-gradient-navy {
-    @apply bg-clip-text text-transparent bg-gradient-to-r from-navy to-navy-700;
-  }
+  /* Textarea & select dark */
+  .dark textarea { background-color: rgb(30 41 59) !important; color: rgb(226 232 240) !important; border-color: rgb(71 85 105 / 0.6) !important; }
+  .dark select { background-color: rgb(30 41 59) !important; color: rgb(226 232 240) !important; border-color: rgb(71 85 105 / 0.6) !important; }
+  .dark textarea::placeholder { color: rgb(100 116 139) !important; }
 
-  /* Card hover effects */
-  .card-hover {
-    @apply transition-all duration-300 hover:shadow-lg hover:shadow-brand/5 hover:-translate-y-0.5 hover:border-brand/20;
-  }
+  /* Hover states */
+  .dark .hover\:bg-gray-50:hover { background-color: rgb(51 65 85 / 0.4) !important; }
+  .dark .hover\:bg-gray-100:hover { background-color: rgb(51 65 85 / 0.6) !important; }
+  .dark .hover\:bg-gray-200:hover { background-color: rgb(71 85 105 / 0.6) !important; }
 
-  /* Animated gradient background */
+  /* Divider */
+  .dark .divide-gray-50 > * + * { border-color: rgb(51 65 85 / 0.4) !important; }
+  .dark .divide-gray-100 > * + * { border-color: rgb(51 65 85 / 0.4) !important; }
+
+  /* Gradient overrides */
+  .dark .from-gray-50 { --tw-gradient-from: rgb(30 41 59) !important; }
+  .dark .to-stone-50 { --tw-gradient-to: rgb(30 41 59) !important; }
+  .dark .from-brand-50 { --tw-gradient-from: rgb(255 107 53 / 0.08) !important; }
+  .dark .to-orange-50 { --tw-gradient-to: rgb(255 107 53 / 0.05) !important; }
+
+  /* Ring */
+  .dark .ring-white { --tw-ring-color: rgb(30 41 59) !important; }
+
   .animated-gradient {
     background-size: 200% 200%;
     @apply animate-gradient-x;

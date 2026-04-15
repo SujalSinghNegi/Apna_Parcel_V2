@@ -131,7 +131,7 @@ export default function NewOrderPage() {
   return (
     <div className="min-h-screen bg-gray-50 pb-32">
       {/* Top bar */}
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-lg border-b border-gray-100">
+      <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-b border-gray-100">
         <div className="max-w-2xl mx-auto flex items-center gap-3 px-4 h-14">
           <button onClick={() => router.back()} className="text-gray-500 hover:text-navy transition-colors">
             <ArrowLeft className="w-5 h-5" />
@@ -189,7 +189,7 @@ export default function NewOrderPage() {
             {SHOP_MODES.map(m => (
               <button key={m.value} onClick={() => setF('shopMode', m.value)}
                 className={cn('flex items-center gap-2.5 p-3 rounded-xl border-2 text-left transition-all',
-                  form.shopMode === m.value ? 'border-brand bg-brand-50/50' : 'border-gray-100 hover:border-gray-200')}>
+                  form.shopMode === m.value ? 'border-brand bg-brand-50/50 dark:bg-brand/10' : 'border-gray-100 hover:border-gray-200')}>
                 <span className="text-xl">{m.emoji}</span>
                 <div>
                   <p className={cn('text-xs font-bold', form.shopMode === m.value ? 'text-brand' : 'text-navy')}>{m.label}</p>
@@ -207,7 +207,7 @@ export default function NewOrderPage() {
           </h2>
           <button onClick={detectMyLocation} disabled={gpsLoading}
             className={cn('w-full flex items-center gap-3 p-3 rounded-xl border-2 transition-all text-left',
-              clientCoords ? 'border-green-300 bg-green-50/50' : 'border-brand/30 bg-brand-50/30 hover:border-brand')}>
+              clientCoords ? 'border-green-300 bg-green-50/50 dark:bg-green-500/10' : 'border-brand/30 bg-brand-50/30 dark:bg-brand/10 hover:border-brand')}>
             {gpsLoading ? <Loader2 className="w-5 h-5 animate-spin text-brand" /> : <Navigation className={cn('w-5 h-5', clientCoords ? 'text-green-600' : 'text-brand')} />}
             <div className="flex-1 min-w-0">
               <p className={cn('text-sm font-semibold', clientCoords ? 'text-green-700' : 'text-brand')}>
@@ -266,7 +266,7 @@ export default function NewOrderPage() {
       </div>
 
       {/* Sticky bottom button */}
-      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 bg-white/95 backdrop-blur-lg border-t border-gray-100 p-4 z-20">
+      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-gray-100 p-4 z-20">
         <div className="max-w-2xl mx-auto">
           <Button className="w-full shadow-lg shadow-brand/20" size="lg" onClick={handleSubmit} loading={loading} disabled={!form.itemName || !form.expectedPrice}>
             Place Order{price > 0 ? ` — ${fmt.currency(total)}` : ''}

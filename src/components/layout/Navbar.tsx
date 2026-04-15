@@ -77,7 +77,7 @@ export const Navbar = () => {
   ]
 
   return (
-    <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100/80 shadow-sm shadow-gray-100/50">
+    <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-100/80 dark:border-gray-700/60 shadow-sm shadow-gray-100/50 dark:shadow-black/20">
       <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
         <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0 group">
           <div className="w-9 h-9 bg-gradient-to-br from-brand to-brand-600 rounded-xl flex items-center justify-center shadow-md shadow-brand/20 group-hover:shadow-lg group-hover:shadow-brand/30 transition-shadow">
@@ -88,14 +88,14 @@ export const Navbar = () => {
           </span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-1 bg-gray-50/80 rounded-2xl p-1">
+        <nav className="hidden md:flex items-center gap-1 bg-gray-50/80 dark:bg-slate-800/80 rounded-2xl p-1">
           {navLinks.map(l => (
             <Link key={l.href} href={l.href}
               className={cn(
                 'flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold transition-all',
                 pathname.startsWith(l.href)
-                  ? 'bg-white text-brand shadow-sm'
-                  : 'text-navy-500 hover:text-navy-700 hover:bg-white/50'
+                  ? 'bg-white dark:bg-slate-700 text-brand shadow-sm'
+                  : 'text-navy-500 hover:text-navy-700 hover:bg-white/50 dark:hover:bg-slate-700/50'
               )}>
               <l.icon className="w-4 h-4" />
               {l.label}
@@ -124,7 +124,7 @@ export const Navbar = () => {
               <ChevronDown className={cn("w-3.5 h-3.5 text-gray-400 hidden sm:block transition-transform", menuOpen && "rotate-180")} />
             </button>
             {menuOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white rounded-2xl shadow-2xl shadow-gray-200/50 border border-gray-100 py-1.5 z-50 animate-scale-in origin-top-right">
+              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl shadow-gray-200/50 dark:shadow-black/40 border border-gray-100 dark:border-gray-700/60 py-1.5 z-50 animate-scale-in origin-top-right">
                 <div className="px-4 py-3 border-b border-gray-100">
                   <p className="text-sm font-bold text-navy">{user.name}</p>
                   <p className="text-xs text-gray-500">{user.email}</p>

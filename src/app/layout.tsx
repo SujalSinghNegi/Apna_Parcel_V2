@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import { Toaster } from "react-hot-toast";
+import { ThemeProvider } from "@/components/layout/ThemeProvider";
 
 export const metadata: Metadata = {
   title: "ApnaParcel — Apni Zaroorat, Apno Ka Kartavya",
@@ -9,13 +10,15 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="en">
+    <html lang="en" suppressHydrationWarning>
       <body suppressHydrationWarning>
-        {children}
-        <Toaster position="top-right" toastOptions={{
-          className: "rounded-xl shadow-lg text-sm",
-          success: { iconTheme: { primary: "#FF6B35", secondary: "white" } },
-        }} />
+        <ThemeProvider>
+          {children}
+          <Toaster position="top-right" toastOptions={{
+            className: "!rounded-xl !shadow-lg !text-sm !bg-white dark:!bg-gray-800 dark:!text-gray-100",
+            success: { iconTheme: { primary: "#FF6B35", secondary: "white" } },
+          }} />
+        </ThemeProvider>
       </body>
     </html>
   );

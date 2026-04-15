@@ -44,9 +44,9 @@ export default function LandingPage() {
   }
 
   return (
-    <div className="min-h-screen bg-white overflow-hidden">
+    <div className="min-h-screen bg-white dark:bg-slate-950 overflow-hidden">
       {/* ===== NAVBAR ===== */}
-      <header className="fixed top-0 w-full z-50 bg-white/80 backdrop-blur-xl border-b border-gray-100/50">
+      <header className="fixed top-0 w-full z-50 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-100/50 dark:border-gray-700/50">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 bg-gradient-to-br from-brand to-brand-600 rounded-xl flex items-center justify-center shadow-lg shadow-brand/25">
@@ -76,7 +76,7 @@ export default function LandingPage() {
       {/* ===== HERO SECTION ===== */}
       <section className="relative pt-32 pb-20 md:pt-40 md:pb-32 overflow-hidden">
         {/* Background decorations */}
-        <div className="absolute inset-0 bg-gradient-to-br from-brand-50/50 via-white to-navy-50/30" />
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-50/50 via-white to-navy-50/30 dark:from-brand-950/20 dark:via-slate-950 dark:to-navy-950/20" />
         <div className="absolute top-20 -right-32 w-96 h-96 bg-brand/5 rounded-full blur-3xl animate-float" />
         <div className="absolute -bottom-20 -left-32 w-80 h-80 bg-navy/5 rounded-full blur-3xl animate-float-delayed" />
         <div className="absolute top-40 left-1/4 w-64 h-64 bg-mint/5 rounded-full blur-3xl animate-float-slow" />
@@ -132,7 +132,7 @@ export default function LandingPage() {
               <div className="flex items-center gap-2 text-sm text-navy-500">
                 <div className="flex -space-x-2">
                   {["bg-brand", "bg-navy", "bg-mint", "bg-brand-400"].map((bg, i) => (
-                    <div key={i} className={`w-8 h-8 rounded-full ${bg} border-2 border-white flex items-center justify-center`}>
+                    <div key={i} className={`w-8 h-8 rounded-full ${bg} border-2 border-white dark:border-slate-900 flex items-center justify-center`}>
                       <span className="text-[10px] font-bold text-white">{["R", "A", "P", "S"][i]}</span>
                     </div>
                   ))}
@@ -213,7 +213,7 @@ export default function LandingPage() {
       </section>
 
       {/* ===== HOW IT WORKS ===== */}
-      <section className="py-20 md:py-28 bg-gray-50/50 relative">
+      <section className="py-20 md:py-28 bg-gray-50/50 dark:bg-slate-900/50 relative">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="text-center mb-16">
             <div className="inline-flex items-center gap-2 bg-navy-50 border border-navy-100 rounded-full px-4 py-1.5 mb-4">
@@ -374,7 +374,7 @@ export default function LandingPage() {
       </section>
 
       {/* ===== FOOTER ===== */}
-      <footer className="border-t border-gray-100 bg-gray-50/50 py-12">
+      <footer className="border-t border-gray-100 dark:border-gray-700/50 bg-gray-50/50 dark:bg-slate-900/50 py-12">
         <div className="max-w-7xl mx-auto px-4 sm:px-6">
           <div className="flex flex-col md:flex-row items-center justify-between gap-6">
             <div className="flex items-center gap-2.5">
