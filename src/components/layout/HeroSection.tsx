@@ -81,15 +81,25 @@ const AnimatedThreads = () => {
       
       {/* Ambient glowing orbs */}
       <motion.div 
-        animate={{ y: [0, -30, 0], opacity: [0.3, 0.6, 0.3] }} 
+        animate={{ y: [0, -30, 0], x: [0, 15, 0], opacity: [0.3, 0.6, 0.3] }} 
         transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }}
-        className="absolute top-1/4 right-1/4 w-96 h-96 bg-brand/10 dark:bg-brand/20 rounded-full blur-[100px]" 
+        className="absolute top-1/4 right-1/4 w-96 h-96 bg-brand/10 dark:bg-brand/25 rounded-full blur-[100px]" 
       />
       <motion.div 
-        animate={{ y: [0, 40, 0], opacity: [0.2, 0.5, 0.2] }} 
+        animate={{ y: [0, 40, 0], x: [0, -20, 0], opacity: [0.2, 0.5, 0.2] }} 
         transition={{ duration: 8, repeat: Infinity, ease: "easeInOut", delay: 2 }}
-        className="absolute bottom-1/4 left-1/4 w-80 h-80 bg-mint/10 dark:bg-mint/20 rounded-full blur-[100px]" 
+        className="absolute bottom-1/4 left-1/4 w-80 h-80 bg-mint/10 dark:bg-mint/25 rounded-full blur-[100px]" 
       />
+      {/* Extra dark-mode accent glow */}
+      <motion.div 
+        animate={{ scale: [1, 1.2, 1], opacity: [0, 0.15, 0] }} 
+        transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[700px] h-[700px] bg-purple-500/5 dark:bg-purple-500/10 rounded-full blur-[120px]" 
+      />
+      {/* Floating particles */}
+      <motion.div animate={{ y: [0, -70, 0], opacity: [0, 0.2, 0] }} transition={{ duration: 6, repeat: Infinity, ease: "easeInOut" }} className="absolute top-1/3 left-[15%] w-1.5 h-1.5 bg-brand rounded-full" />
+      <motion.div animate={{ y: [0, -90, 0], opacity: [0, 0.15, 0] }} transition={{ duration: 9, repeat: Infinity, ease: "easeInOut", delay: 2 }} className="absolute top-2/3 right-[20%] w-2 h-2 bg-mint rounded-full" />
+      <motion.div animate={{ y: [0, -50, 0], opacity: [0, 0.12, 0] }} transition={{ duration: 7, repeat: Infinity, ease: "easeInOut", delay: 4 }} className="absolute bottom-1/3 left-[60%] w-1 h-1 bg-blue-500 rounded-full" />
     </div>
   );
 };

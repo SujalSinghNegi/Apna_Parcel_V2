@@ -6,16 +6,30 @@ import { PageTransition } from '@/components/layout/PageTransition'
 import { useAuthStore } from '@/store/auth'
 import { useSidebarStore } from '@/store/sidebar'
 import { useRouter, usePathname } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 
 export default function MainLayout({ children }: { children: React.ReactNode }) {
   const { user } = useAuthStore()
   const { collapsed } = useSidebarStore()
   const router = useRouter()
   const pathname = usePathname()
-  useEffect(() => { if (!user) router.push('/auth') }, [user, router])
-  if (!user) return (
-    <div className="min-h-screen flex items-center justify-center">
+  const [hydrated, setHydrated] = useState(false)
+
+  // Wait for Zustand persist to rehydrate from localStorage
+  useEffect(() => {
+    const unsub = useAuthStore.persist.onFinishHydration(() => setHydrated(true))
+    // If already hydrated (fast path)
+    if (useAuthStore.persist.hasHydrated()) setHydrated(true)
+    return () => unsub()
+  }, [])
+
+  // Only redirect after hydration is complete
+  useEffect(() => {
+    if (hydrated && !user) router.push('/auth')
+  }, [hydrated, user, router])
+
+  if (!hydrated || !user) return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-gray-950">
       <div className="w-8 h-8 border-4 border-brand border-t-transparent rounded-full animate-spin" />
     </div>
   )

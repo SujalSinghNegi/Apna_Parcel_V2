@@ -23,11 +23,15 @@ api.interceptors.response.use(
           err.config!.headers!.Authorization = `Bearer ${data.data.accessToken}`
           return api(err.config!)
         } catch {
-          localStorage.clear()
+          localStorage.removeItem('accessToken')
+          localStorage.removeItem('refreshToken')
+          localStorage.removeItem('apnaparcel-auth')
           window.location.href = '/auth'
         }
       } else {
-        localStorage.clear()
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        localStorage.removeItem('apnaparcel-auth')
         window.location.href = '/auth'
       }
     }
