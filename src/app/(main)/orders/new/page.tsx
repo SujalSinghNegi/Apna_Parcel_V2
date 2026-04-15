@@ -183,10 +183,18 @@ export default function NewOrderPage() {
   }
 
   // ── Item request (ask vendor if they have it) ────────────────────────────
+  const [allVendors, setAllVendors] = useState<Vendor[]>([])
   const fetchMyRequests = async () => {
     try {
       const { data } = await vendorsApi.myRequests()
       setMyRequests(data.data || [])
+    } catch { /* ignore */ }
+  }
+
+  const fetchAllVendors = async () => {
+    try {
+      const { data } = await vendorsApi.list()
+      setAllVendors(data.data || [])
     } catch { /* ignore */ }
   }
 
@@ -211,6 +219,7 @@ export default function NewOrderPage() {
   // Poll requests
   useEffect(() => {
     fetchMyRequests()
+    fetchAllVendors()
     const interval = setInterval(fetchMyRequests, 15000)
     return () => clearInterval(interval)
   }, [])
@@ -332,6 +341,10 @@ export default function NewOrderPage() {
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-4 space-y-3">
           <h2 className="font-bold text-navy dark:text-white text-sm flex items-center gap-2">
             <Search className="w-4 h-4 text-brand" /> Search from Shops
+            <button onClick={() => setShowRequestModal(true)}
+              className="ml-auto text-[11px] font-bold text-brand hover:underline flex items-center gap-1">
+              <Send className="w-3 h-3" /> Request Item
+            </button>
           </h2>
 
           {/* Search input */}
@@ -374,7 +387,7 @@ export default function NewOrderPage() {
                 <Button size="sm" variant="outline" onClick={() => {
                   setShowSearch(false)
                   setRequestForm(p => ({ ...p, itemName: searchQuery }))
-                  // Show request modal - user needs to pick a vendor
+                  setShowRequestModal(true)
                 }}>
                   Request from a vendor →
                 </Button>
@@ -699,6 +712,53 @@ export default function NewOrderPage() {
               )}
             </div>
           )})}
+        </div>
+      </Modal>
+
+      {/* Send Item Request Modal */}
+      <Modal open={showRequestModal} onClose={() => setShowRequestModal(false)} title="Request Item from Vendor" size="md">
+        <div className="space-y-3">
+          <div className="space-y-1">
+            <label className="text-sm font-bold text-navy dark:text-white">Select Vendor *</label>
+            <select
+              value={requestForm.vendorId}
+              onChange={e => setRequestForm(p => ({ ...p, vendorId: e.target.value }))}
+              className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2.5 text-sm text-navy dark:text-white focus:ring-2 focus:ring-brand focus:border-brand outline-none"
+            >
+              <option value="">Choose a shop...</option>
+              {allVendors.filter(v => v.isVerified && v.isActive).map(v => (
+                <option key={v.id} value={v.id}>{v.shopName} — {v.category}</option>
+              ))}
+            </select>
+          </div>
+          <Input label="Item Name *" placeholder="e.g. Amul Butter 500g"
+            value={requestForm.itemName}
+            onChange={e => setRequestForm(p => ({ ...p, itemName: e.target.value }))} />
+          <Input label="Description (optional)" placeholder="Brand preference, size, etc."
+            value={requestForm.description}
+            onChange={e => setRequestForm(p => ({ ...p, description: e.target.value }))} />
+          <Input label="Max Budget (₹, optional)" type="number" placeholder="100"
+            value={requestForm.maxPrice}
+            onChange={e => setRequestForm(p => ({ ...p, maxPrice: e.target.value }))} />
+          <div className="space-y-1">
+            <label className="text-sm font-bold text-navy dark:text-white">Response timer</label>
+            <select
+              value={requestForm.timerMinutes}
+              onChange={e => setRequestForm(p => ({ ...p, timerMinutes: e.target.value }))}
+              className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2.5 text-sm text-navy dark:text-white focus:ring-2 focus:ring-brand focus:border-brand outline-none"
+            >
+              <option value="5">5 minutes</option>
+              <option value="15">15 minutes</option>
+              <option value="30">30 minutes</option>
+              <option value="60">1 hour</option>
+            </select>
+          </div>
+          <div className="flex gap-2 pt-1">
+            <Button variant="ghost" className="flex-1" onClick={() => setShowRequestModal(false)}>Cancel</Button>
+            <Button className="flex-1" loading={requestLoading} onClick={sendRequest}>
+              <Send className="w-3.5 h-3.5" /> Send Request
+            </Button>
+          </div>
         </div>
       </Modal>
 

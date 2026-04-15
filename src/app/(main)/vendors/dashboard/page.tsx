@@ -1,13 +1,13 @@
 'use client'
 import { useEffect, useState, useCallback } from 'react'
 import { vendorsApi, uploadApi, getErrorMessage } from '@/lib/api'
-import { Vendor, VendorItem } from '@/types'
+import { Vendor, VendorItem, ItemRequest } from '@/types'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { fmt, cn } from '@/lib/utils'
-import { Store, Package, Plus, Edit2, Trash2, Loader2, TrendingUp, Crown, Clock, MapPin, Eye, EyeOff, ShoppingBag, BarChart3, Bell, ArrowLeft, Camera, X } from 'lucide-react'
+import { Store, Package, Plus, Edit2, Trash2, Loader2, TrendingUp, Crown, Clock, MapPin, Eye, EyeOff, ShoppingBag, BarChart3, Bell, ArrowLeft, Camera, X, Timer, Check, XCircle } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
@@ -35,6 +35,14 @@ export default function VendorDashboard() {
   const [orders, setOrders] = useState<{ orders: any[]; pagination: any } | null>(null)
   const [ordersLoading, setOrdersLoading] = useState(false)
 
+  // Item requests
+  const [incomingRequests, setIncomingRequests] = useState<ItemRequest[]>([])
+  const [showRequestPopup, setShowRequestPopup] = useState(false)
+  const [respondingId, setRespondingId] = useState<string | null>(null)
+  const [respondPrice, setRespondPrice] = useState('')
+  const [respondDesc, setRespondDesc] = useState('')
+  const [respondLoading, setRespondLoading] = useState(false)
+
   const fetchVendor = useCallback(async () => {
     try {
       const { data } = await vendorsApi.me()
@@ -49,6 +57,41 @@ export default function VendorDashboard() {
   }, [])
 
   useEffect(() => { fetchVendor() }, [fetchVendor])
+
+  // ── Fetch & poll item requests ──────────────────────────────────────────
+  const fetchRequests = useCallback(async () => {
+    try {
+      const { data } = await vendorsApi.vendorRequests()
+      const reqs: ItemRequest[] = data.data || []
+      const pending = reqs.filter(r => r.status === 'PENDING' && new Date(r.expiresAt) > new Date())
+      setIncomingRequests(pending)
+      // Auto-show popup if new pending requests arrive
+      if (pending.length > 0) setShowRequestPopup(true)
+    } catch { /* ignore */ }
+  }, [])
+
+  useEffect(() => {
+    fetchRequests()
+    const interval = setInterval(fetchRequests, 10000) // poll every 10s
+    return () => clearInterval(interval)
+  }, [fetchRequests])
+
+  const handleRespondRequest = async (requestId: string, accept: boolean) => {
+    setRespondLoading(true)
+    try {
+      await vendorsApi.respondRequest(requestId, {
+        accept,
+        ...(accept && respondPrice ? { vendorPrice: parseFloat(respondPrice) } : {}),
+        ...(respondDesc ? { vendorDescription: respondDesc } : {}),
+      })
+      toast.success(accept ? 'Request accepted!' : 'Request declined')
+      setRespondingId(null)
+      setRespondPrice('')
+      setRespondDesc('')
+      fetchRequests()
+    } catch (e) { toast.error(getErrorMessage(e)) }
+    finally { setRespondLoading(false) }
+  }
 
   // ── Item CRUD ─────────────────────────────────────────────────────────
   const openAddItem = () => {
@@ -188,6 +231,15 @@ export default function VendorDashboard() {
           <p className="text-xs text-gray-400">{vendor!.category} · {vendor!.isVerified ? '✓ Verified' : '⏳ Pending'}</p>
         </div>
         <Button size="sm" variant="outline" onClick={openSettings}><Edit2 className="w-3.5 h-3.5" /> Settings</Button>
+        <button onClick={() => { fetchRequests(); setShowRequestPopup(true) }}
+          className="relative p-2 rounded-xl bg-gray-50 dark:bg-gray-800 hover:bg-brand/10 transition-colors">
+          <Bell className="w-5 h-5 text-navy dark:text-white" />
+          {incomingRequests.length > 0 && (
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white px-1 animate-pulse">
+              {incomingRequests.length}
+            </span>
+          )}
+        </button>
       </div>
 
       {/* Quick Stats */}
@@ -377,6 +429,71 @@ export default function VendorDashboard() {
             <Button variant="ghost" className="flex-1" onClick={() => setShowSettings(false)}>Cancel</Button>
             <Button className="flex-1" loading={updatingSettings} onClick={updateSettings}>Save</Button>
           </div>
+        </div>
+      </Modal>
+
+      {/* Incoming Item Requests Popup */}
+      <Modal open={showRequestPopup} onClose={() => setShowRequestPopup(false)} title={`Incoming Requests (${incomingRequests.length})`} size="md">
+        <div className="space-y-3 max-h-[60vh] overflow-y-auto">
+          {incomingRequests.length === 0 ? (
+            <div className="text-center py-8">
+              <Bell className="w-10 h-10 text-gray-300 mx-auto mb-3" />
+              <p className="text-sm text-gray-400">No pending requests</p>
+            </div>
+          ) : (
+            incomingRequests.map(req => {
+              const timeLeft = Math.max(0, Math.floor((new Date(req.expiresAt).getTime() - Date.now()) / 1000))
+              const mins = Math.floor(timeLeft / 60)
+              const secs = timeLeft % 60
+              const isResponding = respondingId === req.id
+
+              return (
+                <Card key={req.id} className="border-brand/20 bg-brand/5 dark:bg-brand/10">
+                  <CardContent className="py-3 space-y-2">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <h3 className="font-bold text-navy dark:text-white text-sm">{req.itemName}</h3>
+                        {req.description && <p className="text-xs text-gray-500 mt-0.5">{req.description}</p>}
+                        {(req as any).user?.name && <p className="text-[11px] text-gray-400 mt-0.5">From: {(req as any).user.name}</p>}
+                        {req.maxPrice && <p className="text-xs text-brand font-bold mt-1">Budget: {fmt.currency(req.maxPrice)}</p>}
+                      </div>
+                      <div className={cn('flex items-center gap-1 text-xs font-bold px-2 py-1 rounded-full',
+                        timeLeft < 60 ? 'bg-red-100 text-red-600 dark:bg-red-500/20' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/20')}>
+                        <Timer className="w-3 h-3" />
+                        {mins}:{secs.toString().padStart(2, '0')}
+                      </div>
+                    </div>
+
+                    {isResponding ? (
+                      <div className="space-y-2 pt-1">
+                        <Input label="Your price (₹)" type="number" placeholder="Enter your price"
+                          value={respondPrice} onChange={e => setRespondPrice(e.target.value)} />
+                        <Input label="Note (optional)" placeholder="e.g. Brand X available"
+                          value={respondDesc} onChange={e => setRespondDesc(e.target.value)} />
+                        <div className="flex gap-2">
+                          <Button size="sm" variant="ghost" className="flex-1" onClick={() => { setRespondingId(null); setRespondPrice(''); setRespondDesc('') }}>Cancel</Button>
+                          <Button size="sm" className="flex-1 bg-green-600 hover:bg-green-700" loading={respondLoading}
+                            onClick={() => handleRespondRequest(req.id, true)}>
+                            <Check className="w-3.5 h-3.5" /> Accept
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex gap-2 pt-1">
+                        <Button size="sm" variant="outline" className="flex-1 text-red-500 border-red-200 hover:bg-red-50 dark:hover:bg-red-500/10"
+                          loading={respondLoading} onClick={() => handleRespondRequest(req.id, false)}>
+                          <XCircle className="w-3.5 h-3.5" /> Decline
+                        </Button>
+                        <Button size="sm" className="flex-1" onClick={() => setRespondingId(req.id)}>
+                          <Check className="w-3.5 h-3.5" /> Respond
+                        </Button>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              )
+            })
+          )}
         </div>
       </Modal>
     </div>

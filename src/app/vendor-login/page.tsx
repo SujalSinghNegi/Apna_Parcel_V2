@@ -26,7 +26,7 @@ export default function VendorLoginPage() {
       setAuth(d.user, d.accessToken, d.refreshToken)
       initSocket(d.accessToken)
       toast.success(`Welcome, ${d.vendor?.shopName || 'Vendor'}!`)
-      router.push('/vendors/dashboard')
+      router.replace('/vendors/dashboard')
     } catch (e) { toast.error(getErrorMessage(e)) }
     finally { setLoading(false) }
   }

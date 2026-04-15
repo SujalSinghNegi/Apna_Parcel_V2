@@ -68,7 +68,13 @@ export const Sidebar = () => {
 
   if (!user) return null
 
-  const mainLinks = [
+  const isVendor = user.role === 'VENDOR'
+
+  const mainLinks = isVendor ? [
+    { href: '/vendors/dashboard', label: 'My Shop', icon: Store },
+    { href: '/vendors/requests', label: 'Requests', icon: Bell, badge: unreadCount },
+    { href: '/notifications', label: 'Notifications', icon: Bell },
+  ] : [
     { href: '/dashboard', label: 'Home', icon: Home },
     { href: '/orders/new', label: 'New Order', icon: ShoppingBag },
     { href: '/orders?role=client', label: 'My Orders', icon: ClipboardList },
@@ -78,7 +84,7 @@ export const Sidebar = () => {
 
   const bottomLinks = [
     { href: '/profile', label: 'Profile', icon: User },
-    { href: '/complaints', label: 'Complaints', icon: MessageSquare },
+    ...(!isVendor ? [{ href: '/complaints', label: 'Complaints', icon: MessageSquare }] : []),
     ...(user.isAdmin ? [{ href: '/admin', label: 'Admin', icon: Shield }] : []),
   ]
 
@@ -190,7 +196,8 @@ export const Sidebar = () => {
         </AnimatePresence>
         {mainLinks.map(l => <NavItem key={l.href} {...l} />)}
 
-        {/* Rider mode — special button */}
+        {/* Rider mode & My Shop — only for regular users */}
+        {!isVendor && (
         <div className="pt-2">
           <AnimatePresence>
             {!collapsed && (
@@ -199,8 +206,8 @@ export const Sidebar = () => {
             )}
           </AnimatePresence>
           <NavItem icon={Bike} label="Rider Mode" onClick={handleRiderClick} highlight />
-          <NavItem href="/vendors/dashboard" icon={Store} label="My Shop" highlight />
         </div>
+        )}
 
         <div className="pt-4">
           <AnimatePresence>
