@@ -1,14 +1,19 @@
 'use client'
+
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
 import { Avatar } from '@/components/ui/Avatar'
-import { Bell, Package, ChevronDown, ShoppingBag, Bike, Home, Store, Shield, LogOut, User, ClipboardList, MessageSquare } from 'lucide-react'
+import { 
+  Bell, Package, ChevronDown, ShoppingBag, Bike, 
+  Home, Store, Shield, LogOut, User, ClipboardList, MessageSquare 
+} from 'lucide-react'
 import { useState, useEffect, useRef } from 'react'
-import { authApi, usersApi, getErrorMessage } from '@/lib/api'
+import { authApi, usersApi } from '@/lib/api'
 import { initSocket, EVENTS } from '@/lib/socket'
 import toast from 'react-hot-toast'
 import { cn } from '@/lib/utils'
+import { motion, AnimatePresence, Variants } from 'framer-motion'
 
 export const Navbar = () => {
   const { user, clearAuth, refreshToken, accessToken } = useAuthStore() as any
@@ -34,7 +39,7 @@ export const Navbar = () => {
         setUnreadCount(notifs.filter((n: any) => !n.isRead).length)
       })
       .catch(() => {})
-  }, [pathname]) // re-check when navigating
+  }, [pathname])
 
   // Listen for new notifications via socket
   useEffect(() => {
@@ -76,79 +81,171 @@ export const Navbar = () => {
     { href: '/notifications', label: 'Notifications', icon: Bell },
   ]
 
+  // Animation variants for dropdown menu
+  const dropdownVariants : Variants = {
+    hidden: { opacity: 0, y: 15, scale: 0.95, filter: 'blur(10px)' },
+    visible: { 
+      opacity: 1, 
+      y: 0, 
+      scale: 1, 
+      filter: 'blur(0px)',
+      transition: { 
+        type: 'spring', 
+        stiffness: 400, 
+        damping: 30,
+        staggerChildren: 0.05
+      }
+    },
+    exit: { 
+      opacity: 0, 
+      y: 10, 
+      scale: 0.95, 
+      filter: 'blur(5px)',
+      transition: { ease: 'easeInOut', duration: 0.2 } 
+    }
+  }
+
+  const itemVariants = {
+    hidden: { opacity: 0, x: -10 },
+    visible: { opacity: 1, x: 0 }
+  }
+
   return (
-    <header className="sticky top-0 z-40 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl border-b border-gray-100/80 dark:border-gray-700/60 shadow-sm shadow-gray-100/50 dark:shadow-black/20">
-      <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between gap-4">
-        <Link href="/dashboard" className="flex items-center gap-2.5 shrink-0 group">
-          <div className="w-9 h-9 bg-gradient-to-br from-brand to-brand-600 rounded-xl flex items-center justify-center shadow-md shadow-brand/20 group-hover:shadow-lg group-hover:shadow-brand/30 transition-shadow">
-            <Package className="w-4.5 h-4.5 text-white" />
-          </div>
-          <span className="font-extrabold text-navy text-lg hidden sm:block">
+    <div className="fixed top-0 left-0 right-0 z-50 pt-4 px-4 flex justify-center pointer-events-none">
+      <motion.header 
+        initial={{ y: -100, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 200, damping: 20 }}
+        className="w-full max-w-6xl pointer-events-auto bg-white/70 dark:bg-slate-900/70 backdrop-blur-2xl border border-white/40 dark:border-slate-700/50 rounded-full shadow-[0_8px_32px_rgba(0,0,0,0.06)] dark:shadow-[0_8px_32px_rgba(0,0,0,0.3)] px-4 py-2.5 flex items-center justify-between"
+      >
+        {/* Logo */}
+        <Link href="/dashboard" className="flex items-center gap-3 shrink-0 group relative z-10 pl-2">
+          <motion.div 
+            whileHover={{ scale: 1.05, rotate: 5 }}
+            whileTap={{ scale: 0.95 }}
+            className="w-10 h-10 bg-gradient-to-tr from-brand to-brand-500 rounded-2xl flex items-center justify-center shadow-lg shadow-brand/30"
+          >
+            <Package className="w-5 h-5 text-white" />
+          </motion.div>
+          <span className="font-extrabold text-slate-800 dark:text-white text-xl hidden sm:block tracking-tight">
             Apna<span className="text-brand">Parcel</span>
           </span>
         </Link>
 
-        <nav className="hidden md:flex items-center gap-1 bg-gray-50/80 dark:bg-slate-800/80 rounded-2xl p-1">
-          {navLinks.map(l => (
-            <Link key={l.href} href={l.href}
-              className={cn(
-                'flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-sm font-bold transition-all',
-                pathname.startsWith(l.href)
-                  ? 'bg-white dark:bg-slate-700 text-brand shadow-sm'
-                  : 'text-navy-500 hover:text-navy-700 hover:bg-white/50 dark:hover:bg-slate-700/50'
-              )}>
-              <l.icon className="w-4 h-4" />
-              {l.label}
-            </Link>
-          ))}
+        {/* Center Navigation - Floating Liquid Pill Effect */}
+        <nav className="hidden md:flex items-center gap-1 bg-slate-500/5 dark:bg-slate-800/50 p-1.5 rounded-full relative">
+          {navLinks.map(l => {
+            const isActive = pathname.startsWith(l.href)
+            return (
+              <Link key={l.href} href={l.href} className="relative px-4 py-2 rounded-full z-10 group">
+                {isActive && (
+                  <motion.div 
+                    layoutId="active-nav-pill"
+                    className="absolute inset-0 bg-white dark:bg-slate-700 rounded-full shadow-sm"
+                    transition={{ type: "spring", stiffness: 350, damping: 30 }}
+                  />
+                )}
+                <div className={cn(
+                  "relative flex items-center gap-2 text-sm font-bold transition-colors duration-300 z-10",
+                  isActive ? "text-brand" : "text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-slate-200"
+                )}>
+                  <l.icon className={cn("w-4 h-4 transition-transform duration-300", isActive ? "scale-110" : "group-hover:scale-110")} />
+                  {l.label}
+                </div>
+              </Link>
+            )
+          })}
         </nav>
 
-        <div className="flex items-center gap-2">
-          <Link href="/notifications"
-            className="relative p-2.5 rounded-xl hover:bg-gray-100 text-navy-400 hover:text-navy-600 transition-all">
-            <Bell className="w-5 h-5" />
-            {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-brand rounded-full flex items-center justify-center text-[10px] font-bold text-white ring-2 ring-white animate-bounce-in px-1">
-                {unreadCount > 9 ? '9+' : unreadCount}
-              </span>
-            )}
+        {/* Right Actions */}
+        <div className="flex items-center gap-1 sm:gap-3 pr-1">
+          {/* Notifications */}
+          <Link href="/notifications">
+            <motion.div 
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              className="relative p-2.5 rounded-full bg-slate-500/5 dark:bg-slate-800/50 text-slate-500 hover:text-slate-800 dark:text-slate-400 dark:hover:text-white transition-colors"
+            >
+              <Bell className="w-5 h-5" />
+              <AnimatePresence>
+                {unreadCount > 0 && (
+                  <motion.span 
+                    initial={{ scale: 0, opacity: 0 }}
+                    animate={{ scale: 1, opacity: 1 }}
+                    exit={{ scale: 0, opacity: 0 }}
+                    className="absolute top-1 right-1 min-w-[18px] h-[18px] bg-red-500 rounded-full flex items-center justify-center text-[10px] font-bold text-white shadow-sm shadow-red-500/40 px-1 border-2 border-white dark:border-slate-900"
+                  >
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </motion.span>
+                )}
+              </AnimatePresence>
+            </motion.div>
           </Link>
+
+          {/* Profile Dropdown */}
           <div className="relative" ref={menuRef}>
-            <button onClick={() => setMenuOpen(!menuOpen)}
+            <motion.button 
+              whileTap={{ scale: 0.97 }}
+              onClick={() => setMenuOpen(!menuOpen)}
               className={cn(
-                "flex items-center gap-2 p-1.5 rounded-xl transition-all",
-                menuOpen ? "bg-gray-100" : "hover:bg-gray-50"
-              )}>
-              <Avatar src={user.profilePhoto} name={user.name} size="sm" />
-              <span className="text-sm font-bold text-navy hidden sm:block max-w-[120px] truncate">{user.name}</span>
-              <ChevronDown className={cn("w-3.5 h-3.5 text-gray-400 hidden sm:block transition-transform", menuOpen && "rotate-180")} />
-            </button>
-            {menuOpen && (
-              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-slate-800 rounded-2xl shadow-2xl shadow-gray-200/50 dark:shadow-black/40 border border-gray-100 dark:border-gray-700/60 py-1.5 z-50 animate-scale-in origin-top-right">
-                <div className="px-4 py-3 border-b border-gray-100">
-                  <p className="text-sm font-bold text-navy">{user.name}</p>
-                  <p className="text-xs text-gray-500">{user.email}</p>
-                </div>
-                <div className="py-1">
-                  {menuLinks.map(item => (
-                    <Link key={item.href} href={item.href} onClick={() => setMenuOpen(false)}
-                      className="flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-navy-600 hover:bg-gray-50 hover:text-navy transition-colors">
-                      <item.icon className="w-4 h-4 text-gray-400" />
-                      {item.label}
-                    </Link>
-                  ))}
-                </div>
-                <hr className="my-1 border-gray-100" />
-                <button onClick={handleLogout}
-                  className="w-full flex items-center gap-2.5 px-4 py-2.5 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
-                  <LogOut className="w-4 h-4" />
-                  Sign out
-                </button>
-              </div>
-            )}
+                "flex items-center gap-2.5 p-1.5 pr-3 rounded-full transition-all duration-300 border border-transparent",
+                menuOpen ? "bg-slate-500/10 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700" : "hover:bg-slate-500/5 dark:hover:bg-slate-800/50"
+              )}
+            >
+              <Avatar src={user.profilePhoto} name={user.name} size="sm" className="ring-2 ring-white dark:ring-slate-800 shadow-sm" />
+              <span className="text-sm font-bold text-slate-700 dark:text-slate-200 hidden sm:block max-w-[100px] truncate">{user.name}</span>
+              <motion.div animate={{ rotate: menuOpen ? 180 : 0 }} transition={{ type: "spring", stiffness: 300, damping: 20 }}>
+                <ChevronDown className="w-4 h-4 text-slate-400 hidden sm:block" />
+              </motion.div>
+            </motion.button>
+
+            {/* Dropdown Menu */}
+            <AnimatePresence>
+              {menuOpen && (
+                <motion.div 
+                  variants={dropdownVariants}
+                  initial="hidden"
+                  animate="visible"
+                  exit="exit"
+                  className="absolute right-0 mt-4 w-64 bg-white/90 dark:bg-slate-900/90 backdrop-blur-3xl rounded-3xl shadow-[0_20px_60px_rgba(0,0,0,0.1)] dark:shadow-[0_20px_60px_rgba(0,0,0,0.5)] border border-white/50 dark:border-slate-700/50 p-2 z-50 overflow-hidden"
+                >
+                  <div className="px-4 py-3 mb-2 bg-slate-500/5 dark:bg-slate-800/50 rounded-2xl">
+                    <p className="text-sm font-bold text-slate-800 dark:text-white truncate">{user.name}</p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{user.email}</p>
+                  </div>
+                  
+                  <div className="flex flex-col gap-1">
+                    {menuLinks.map(item => (
+                      <motion.div key={item.href} variants={itemVariants}>
+                        <Link 
+                          href={item.href} 
+                          onClick={() => setMenuOpen(false)}
+                          className="flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-slate-600 dark:text-slate-300 hover:text-brand dark:hover:text-brand hover:bg-brand/5 dark:hover:bg-brand/10 rounded-xl transition-colors group"
+                        >
+                          <item.icon className="w-4 h-4 text-slate-400 group-hover:text-brand transition-colors" />
+                          {item.label}
+                        </Link>
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  <div className="h-px bg-slate-100 dark:bg-slate-800 my-2 mx-2" />
+                  
+                  <motion.div variants={itemVariants}>
+                    <button 
+                      onClick={handleLogout}
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm font-semibold text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors group"
+                    >
+                      <LogOut className="w-4 h-4 group-hover:scale-110 transition-transform" />
+                      Sign out
+                    </button>
+                  </motion.div>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </div>
         </div>
-      </div>
-    </header>
+      </motion.header>
+    </div>
   )
 }

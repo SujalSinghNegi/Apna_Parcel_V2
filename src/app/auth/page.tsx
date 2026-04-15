@@ -1,19 +1,39 @@
 "use client";
+
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
-import { api } from "@/lib/api";
+import { api, getErrorMessage } from "@/lib/api";
 import { initSocket } from "@/lib/socket";
 import toast from "react-hot-toast";
 import Link from "next/link";
-import { Package, Mail, Lock, User as UserIcon, ChevronRight, ArrowLeft, Sparkles, GraduationCap, MapPin, Briefcase } from "lucide-react";
-import { getErrorMessage } from "@/lib/api";
+import { motion, AnimatePresence, Variants } from "framer-motion";
+import { 
+  Package, Mail, Lock, User as UserIcon, ChevronRight, 
+  ArrowLeft, Sparkles, GraduationCap, MapPin, Briefcase 
+} from "lucide-react";
 
 type Step = "email" | "otp" | "register";
 
+// --- Framer Motion Variants ---
+const pageVariants:Variants = {
+  initial: { opacity: 0, x: 20, filter: "blur(5px)" },
+  animate: { opacity: 1, x: 0, filter: "blur(0px)", transition: { type: "spring", stiffness: 300, damping: 25 } },
+  exit: { opacity: 0, x: -20, filter: "blur(5px)", transition: { duration: 0.2 } }
+};
+
+const staggerContainer:Variants = {
+  animate: { transition: { staggerChildren: 0.05 } }
+};
+
+const itemVariants:Variants = {
+  initial: { opacity: 0, y: 10 },
+  animate: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
+};
+
 export default function AuthPage() {
   const router = useRouter();
-  const { setAuth } = useAuthStore();
+  const { setAuth } = useAuthStore() as any;
   const [step, setStep] = useState<Step>("email");
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -71,210 +91,254 @@ export default function AuthPage() {
   };
 
   const userTypeOptions = [
-    { value: "STUDENT", label: "College Student", icon: GraduationCap, desc: "Studying on campus" },
-    { value: "LOCAL_PERSON", label: "Local Resident", icon: MapPin, desc: "Living in the area" },
-    { value: "STAFF_FACULTY", label: "Staff / Faculty", icon: Briefcase, desc: "Working on campus" },
+    { value: "STUDENT", label: "College Student", icon: GraduationCap },
+    { value: "LOCAL_PERSON", label: "Local Resident", icon: MapPin },
+    { value: "STAFF_FACULTY", label: "Staff / Faculty", icon: Briefcase },
   ];
 
-  // Progress bar
   const stepIndex = step === "email" ? 0 : step === "otp" ? 1 : 2;
 
   return (
-    <div className="min-h-screen relative overflow-hidden flex items-center justify-center p-4">
-      {/* Animated background */}
-      <div className="absolute inset-0 bg-gradient-to-br from-navy-900 via-navy-800 to-navy" />
-      <div className="absolute inset-0 bg-hero-pattern opacity-30" />
-      <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-brand/20 rounded-full blur-[120px] animate-float" />
-      <div className="absolute bottom-0 left-0 w-[400px] h-[400px] bg-navy-400/20 rounded-full blur-[100px] animate-float-delayed" />
-      <div className="absolute top-1/2 left-1/3 w-[300px] h-[300px] bg-mint/10 rounded-full blur-[80px] animate-float-slow" />
+    <div className="min-h-screen relative flex items-center justify-center p-4 bg-gray-50 dark:bg-slate-950 overflow-hidden selection:bg-brand-200 selection:text-brand-900">
+      {/* Ambient Background Engine */}
+      <div className="absolute inset-0 overflow-hidden pointer-events-none">
+        <div className="absolute inset-0 bg-gradient-to-br from-brand-50/50 via-white to-navy-50/30 dark:from-brand-950/20 dark:via-slate-950 dark:to-navy-950/20" />
+        <motion.div 
+          animate={{ y: [0, -30, 0], opacity: [0.3, 0.6, 0.3] }} 
+          transition={{ duration: 8, repeat: Infinity, ease: "easeInOut" }}
+          className="absolute -top-20 -right-20 w-[500px] h-[500px] bg-brand/10 dark:bg-brand/20 rounded-full blur-[100px]" 
+        />
+        <motion.div 
+          animate={{ y: [0, 40, 0], opacity: [0.2, 0.5, 0.2] }} 
+          transition={{ duration: 10, repeat: Infinity, ease: "easeInOut", delay: 1 }}
+          className="absolute -bottom-20 -left-20 w-[400px] h-[400px] bg-mint/10 dark:bg-mint/20 rounded-full blur-[100px]" 
+        />
+      </div>
 
-      <div className="relative w-full max-w-md animate-fade-in-up">
-        {/* Logo */}
-        <Link href="/" className="flex items-center justify-center gap-2.5 mb-8 group">
-          <div className="w-12 h-12 bg-gradient-to-br from-brand to-brand-600 rounded-2xl flex items-center justify-center shadow-xl shadow-brand/30 group-hover:scale-105 transition-transform">
-            <Package className="w-7 h-7 text-white" />
-          </div>
-          <div className="text-left">
-            <h1 className="text-2xl font-extrabold text-white leading-none">
-              Apna<span className="text-brand-300">Parcel</span>
-            </h1>
-            <p className="text-[11px] text-white/50 font-medium tracking-wide">Campus Delivery Network</p>
-          </div>
-        </Link>
-
-        {/* Progress indicator */}
-        <div className="flex items-center gap-2 mb-6 px-1">
-          {["Account", "Verify", "Profile"].map((label, i) => (
-            <div key={label} className="flex-1">
-              <div className={`h-1 rounded-full transition-all duration-500 ${i <= stepIndex ? "bg-brand" : "bg-white/10"}`} />
-              <p className={`text-[10px] mt-1.5 font-semibold transition-colors ${i <= stepIndex ? "text-brand-300" : "text-white/30"}`}>
-                {label}
-              </p>
+      <div className="relative w-full max-w-md z-10">
+        {/* Logo Header */}
+        <motion.div 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: "spring", stiffness: 300, damping: 20 }}
+        >
+          <Link href="/" className="flex flex-col items-center justify-center gap-3 mb-8 group">
+            <motion.div 
+              whileHover={{ scale: 1.05, rotate: 5 }}
+              whileTap={{ scale: 0.95 }}
+              className="w-14 h-14 bg-gradient-to-br from-brand to-brand-500 rounded-2xl flex items-center justify-center shadow-xl shadow-brand/30"
+            >
+              <Package className="w-8 h-8 text-white" />
+            </motion.div>
+            <div className="text-center">
+              <h1 className="text-3xl font-extrabold text-slate-900 dark:text-white leading-none tracking-tight">
+                Apna<span className="text-transparent bg-clip-text bg-gradient-to-r from-brand to-brand-500">Parcel</span>
+              </h1>
+              <p className="text-sm text-slate-500 dark:text-slate-400 font-medium tracking-wide mt-1">Campus Delivery Network</p>
             </div>
-          ))}
-        </div>
+          </Link>
+        </motion.div>
 
-        {/* Card */}
-        <div className="bg-white rounded-3xl shadow-2xl shadow-black/20 overflow-hidden">
-          <div className="p-7 sm:p-8">
-            {step === "email" && (
-              <form onSubmit={sendOtp} className="space-y-6 animate-fade-in">
-                <div>
-                  <h2 className="text-2xl font-extrabold text-navy">Welcome back! 👋</h2>
-                  <p className="text-navy-500 text-sm mt-1.5">Enter your email to receive a one-time password</p>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-navy-700">Email Address</label>
-                  <div className="relative group">
-                    <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-brand transition-colors" />
-                    <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@college.edu"
-                      className="w-full pl-11 pr-4 py-3.5 rounded-xl border-2 border-gray-200 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-navy font-medium placeholder:text-gray-400 placeholder:font-normal" required />
+        {/* Auth Card (Glassmorphic) */}
+        <motion.div 
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1, type: "spring", stiffness: 300, damping: 25 }}
+          className="bg-white/80 dark:bg-slate-900/80 backdrop-blur-2xl rounded-[2rem] shadow-[0_8px_40px_rgba(0,0,0,0.08)] dark:shadow-[0_8px_40px_rgba(0,0,0,0.4)] border border-white/50 dark:border-slate-700/50 overflow-hidden"
+        >
+          {/* Progress Indicator */}
+          <div className="px-8 pt-8 pb-4">
+            <div className="flex items-center gap-2">
+              {["Account", "Verify", "Profile"].map((label, i) => (
+                <div key={label} className="flex-1 relative">
+                  <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                    <motion.div 
+                      className="h-full bg-brand"
+                      initial={{ width: "0%" }}
+                      animate={{ width: i <= stepIndex ? "100%" : "0%" }}
+                      transition={{ duration: 0.5, ease: "easeInOut" }}
+                    />
                   </div>
+                  <motion.p 
+                    animate={{ color: i <= stepIndex ? "#3b82f6" : "#94a3b8" }} // brand color vs slate-400
+                    className="text-[10px] mt-2 font-bold uppercase tracking-wider text-center"
+                  >
+                    {label}
+                  </motion.p>
                 </div>
-                <button type="submit" disabled={loading}
-                  className="w-full bg-gradient-to-r from-brand to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white font-bold py-3.5 px-6 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/30 active:scale-[0.98]"
-                >
-                  {loading ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>Continue <ChevronRight className="w-5 h-5" /></>
-                  )}
-                </button>
-              </form>
-            )}
-
-            {step === "otp" && (
-              <form onSubmit={verifyOtp} className="space-y-6 animate-fade-in">
-                <div>
-                  <button type="button" onClick={() => setStep("email")}
-                    className="flex items-center gap-1.5 text-sm text-navy-400 hover:text-navy-700 mb-4 font-medium transition-colors">
-                    <ArrowLeft className="w-4 h-4" /> Back
-                  </button>
-                  <h2 className="text-2xl font-extrabold text-navy">Check your inbox 📧</h2>
-                  <p className="text-navy-500 text-sm mt-1.5">
-                    We sent a 6-digit code to{" "}
-                    <span className="font-semibold text-navy-700 bg-navy-50 px-2 py-0.5 rounded-md">{email}</span>
-                  </p>
-                </div>
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-navy-700">Verification Code</label>
-                  <div className="relative group">
-                    <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-brand transition-colors" />
-                    <input type="text" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/, "").slice(0, 6))}
-                      placeholder="• • • • • •" maxLength={6}
-                      className="w-full pl-11 pr-4 py-3.5 rounded-xl border-2 border-gray-200 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-2xl tracking-[0.3em] font-mono text-center font-bold text-navy placeholder:tracking-[0.5em]" required />
-                  </div>
-                  <p className="text-xs text-gray-400 flex items-center gap-1">
-                    <span className="w-1.5 h-1.5 bg-green-400 rounded-full animate-pulse" />
-                    OTP valid for 10 minutes
-                  </p>
-                </div>
-                <button type="submit" disabled={loading || otp.length !== 6}
-                  className="w-full bg-gradient-to-r from-brand to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white font-bold py-3.5 px-6 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/30 active:scale-[0.98]"
-                >
-                  {loading ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <>Verify & Continue <ChevronRight className="w-5 h-5" /></>
-                  )}
-                </button>
-                <button type="button" onClick={sendOtp}
-                  className="w-full text-sm text-navy-400 hover:text-brand font-semibold transition-colors py-1">
-                  Didn&apos;t get it? Resend OTP
-                </button>
-              </form>
-            )}
-
-            {step === "register" && (
-              <form onSubmit={register} className="space-y-5 animate-fade-in">
-                <div>
-                  <button type="button" onClick={() => setStep("otp")}
-                    className="flex items-center gap-1.5 text-sm text-navy-400 hover:text-navy-700 mb-4 font-medium transition-colors">
-                    <ArrowLeft className="w-4 h-4" /> Back
-                  </button>
-                  <h2 className="text-2xl font-extrabold text-navy">Almost there! ✨</h2>
-                  <p className="text-navy-500 text-sm mt-1.5">Tell us a bit about yourself</p>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-navy-700">Full Name</label>
-                  <div className="relative group">
-                    <UserIcon className="absolute left-3.5 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400 group-focus-within:text-brand transition-colors" />
-                    <input value={name} onChange={e => setName(e.target.value)} placeholder="What should we call you?"
-                      className="w-full pl-11 pr-4 py-3.5 rounded-xl border-2 border-gray-200 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-navy font-medium placeholder:text-gray-400 placeholder:font-normal" required />
-                  </div>
-                </div>
-
-                <div className="space-y-1.5">
-                  <label className="block text-sm font-semibold text-navy-700">Phone <span className="text-gray-400 font-normal">(optional)</span></label>
-                  <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="9876543210" maxLength={10}
-                    className="w-full px-4 py-3.5 rounded-xl border-2 border-gray-200 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-navy font-medium placeholder:text-gray-400 placeholder:font-normal" />
-                </div>
-
-                <div className="space-y-2">
-                  <label className="block text-sm font-semibold text-navy-700">I am a...</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {userTypeOptions.map(opt => (
-                      <button key={opt.value} type="button" onClick={() => setUserType(opt.value)}
-                        className={`p-3 rounded-xl border-2 text-center transition-all ${
-                          userType === opt.value
-                            ? "border-brand bg-brand-50 ring-2 ring-brand/20"
-                            : "border-gray-200 hover:border-gray-300 bg-white"
-                        }`}
-                      >
-                        <opt.icon className={`w-5 h-5 mx-auto mb-1.5 ${userType === opt.value ? "text-brand" : "text-gray-400"}`} />
-                        <p className={`text-xs font-bold ${userType === opt.value ? "text-brand" : "text-navy-600"}`}>{opt.label}</p>
-                      </button>
-                    ))}
-                  </div>
-                </div>
-
-                {userType === "STUDENT" && (
-                  <div className="space-y-3 p-4 bg-gradient-to-br from-brand-50 to-orange-50 rounded-2xl border border-brand-100 animate-fade-in">
-                    <div className="flex items-center gap-2 mb-1">
-                      <GraduationCap className="w-4 h-4 text-brand" />
-                      <span className="text-xs font-bold text-brand-700">Student Details</span>
-                    </div>
-                    <input value={collegeName} onChange={e => setCollegeName(e.target.value)} placeholder="College name"
-                      className="w-full px-4 py-2.5 rounded-xl border-2 border-brand-100 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 bg-white text-sm font-medium text-navy transition-all" />
-                    <div className="flex gap-2">
-                      <select value={yearOfStudy} onChange={e => setYearOfStudy(e.target.value)}
-                        className="flex-1 px-3 py-2.5 rounded-xl border-2 border-brand-100 focus:outline-none focus:border-brand bg-white text-sm font-medium text-navy">
-                        {["1ST","2ND","3RD","4TH"].map(y => <option key={y} value={y}>{y} Year</option>)}
-                      </select>
-                      <input value={branch} onChange={e => setBranch(e.target.value)} placeholder="Branch/Dept"
-                        className="flex-1 px-3 py-2.5 rounded-xl border-2 border-brand-100 focus:outline-none focus:border-brand bg-white text-sm font-medium text-navy transition-all" />
-                    </div>
-                  </div>
-                )}
-
-                <button type="submit" disabled={loading}
-                  className="w-full bg-gradient-to-r from-brand to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white font-bold py-3.5 px-6 rounded-xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-brand/25 hover:shadow-xl hover:shadow-brand/30 active:scale-[0.98]"
-                >
-                  {loading ? (
-                    <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                  ) : (
-                    <><Sparkles className="w-4 h-4" /> Create My Account</>
-                  )}
-                </button>
-              </form>
-            )}
+              ))}
+            </div>
           </div>
 
-          {/* Footer */}
-          <div className="px-8 py-4 bg-gradient-to-r from-gray-50 to-stone-50 border-t border-gray-100 text-center">
-            <p className="text-xs text-gray-500 font-medium">
-              🏔️ Serving the campus community of Dwarahat, Uttarakhand
+          <div className="px-8 pb-8 pt-2">
+            {/* Step Content with AnimatePresence for smooth swapping */}
+            <AnimatePresence mode="wait">
+              {step === "email" && (
+                <motion.form key="email" variants={pageVariants} initial="initial" animate="animate" exit="exit" onSubmit={sendOtp} className="space-y-6">
+                  <motion.div variants={staggerContainer}>
+                    <motion.h2 variants={itemVariants} className="text-2xl font-extrabold text-slate-900 dark:text-white">Welcome back! 👋</motion.h2>
+                    <motion.p variants={itemVariants} className="text-slate-500 dark:text-slate-400 text-sm mt-1.5">Enter your email to receive a secure code.</motion.p>
+                  </motion.div>
+                  <motion.div variants={itemVariants} className="space-y-1.5">
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Email Address</label>
+                    <div className="relative group">
+                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-brand transition-colors" />
+                      <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@college.edu"
+                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-slate-900 dark:text-white font-semibold placeholder:text-slate-400 placeholder:font-medium" required />
+                    </div>
+                  </motion.div>
+                  <motion.button variants={itemVariants} type="submit" disabled={loading}
+                    className="w-full relative group overflow-hidden bg-brand hover:bg-brand-600 text-white font-bold py-4 px-6 rounded-2xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-brand/25 hover:shadow-brand/40 active:scale-[0.98]"
+                  >
+                    {loading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <><span className="relative z-10">Continue</span> <ChevronRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" /></>
+                    )}
+                  </motion.button>
+                </motion.form>
+              )}
+
+              {step === "otp" && (
+                <motion.form key="otp" variants={pageVariants} initial="initial" animate="animate" exit="exit" onSubmit={verifyOtp} className="space-y-6">
+                  <motion.div variants={staggerContainer}>
+                    <button type="button" onClick={() => setStep("email")} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white mb-4 font-bold transition-colors">
+                      <ArrowLeft className="w-4 h-4" /> Back
+                    </button>
+                    <motion.h2 variants={itemVariants} className="text-2xl font-extrabold text-slate-900 dark:text-white">Check your inbox 📧</motion.h2>
+                    <motion.p variants={itemVariants} className="text-slate-500 dark:text-slate-400 text-sm mt-1.5 leading-relaxed">
+                      We sent a 6-digit code to <br/>
+                      <span className="font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md inline-block mt-1">{email}</span>
+                    </motion.p>
+                  </motion.div>
+                  <motion.div variants={itemVariants} className="space-y-1.5">
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Verification Code</label>
+                    <div className="relative group">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-brand transition-colors" />
+                      <input type="text" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/, "").slice(0, 6))}
+                        placeholder="• • • • • •" maxLength={6}
+                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-2xl tracking-[0.4em] font-mono text-center font-bold text-slate-900 dark:text-white placeholder:tracking-[0.5em] placeholder:text-slate-300 dark:placeholder:text-slate-600" required />
+                    </div>
+                  </motion.div>
+                  <motion.button variants={itemVariants} type="submit" disabled={loading || otp.length !== 6}
+                    className="w-full bg-brand hover:bg-brand-600 text-white font-bold py-4 px-6 rounded-2xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-brand/25 active:scale-[0.98]"
+                  >
+                    {loading ? (
+                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <>Verify & Continue <ChevronRight className="w-5 h-5" /></>
+                    )}
+                  </motion.button>
+                  <motion.button variants={itemVariants} type="button" onClick={sendOtp} className="w-full text-sm text-slate-500 hover:text-brand font-bold transition-colors py-1">
+                    Didn&apos;t get it? Resend OTP
+                  </motion.button>
+                </motion.form>
+              )}
+
+              {step === "register" && (
+                <motion.form key="register" variants={pageVariants} initial="initial" animate="animate" exit="exit" onSubmit={register} className="space-y-5">
+                  <motion.div variants={staggerContainer}>
+                    <button type="button" onClick={() => setStep("otp")} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white mb-2 font-bold transition-colors">
+                      <ArrowLeft className="w-4 h-4" /> Back
+                    </button>
+                    <motion.h2 variants={itemVariants} className="text-2xl font-extrabold text-slate-900 dark:text-white">Almost there! ✨</motion.h2>
+                    <motion.p variants={itemVariants} className="text-slate-500 dark:text-slate-400 text-sm mt-1">Tell us a bit about yourself</motion.p>
+                  </motion.div>
+
+                  <motion.div variants={staggerContainer} className="space-y-4 max-h-[50vh] overflow-y-auto pr-2 custom-scrollbar">
+                    <motion.div variants={itemVariants} className="space-y-1.5">
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Full Name</label>
+                      <div className="relative group">
+                        <UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-brand transition-colors" />
+                        <input value={name} onChange={e => setName(e.target.value)} placeholder="What should we call you?"
+                          className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-slate-900 dark:text-white font-semibold placeholder:text-slate-400" required />
+                      </div>
+                    </motion.div>
+
+                    <motion.div variants={itemVariants} className="space-y-1.5">
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Phone <span className="text-slate-400 font-medium">(optional)</span></label>
+                      <input value={phone} onChange={e => setPhone(e.target.value)} placeholder="9876543210" maxLength={10}
+                        className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-slate-900 dark:text-white font-semibold placeholder:text-slate-400" />
+                    </motion.div>
+
+                    <motion.div variants={itemVariants} className="space-y-2">
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">I am a...</label>
+                      <div className="grid grid-cols-3 gap-2">
+                        {userTypeOptions.map(opt => (
+                          <motion.button whileTap={{ scale: 0.95 }} key={opt.value} type="button" onClick={() => setUserType(opt.value)}
+                            className={`p-3 rounded-2xl border-2 text-center transition-all ${
+                              userType === opt.value
+                                ? "border-brand bg-brand/5 dark:bg-brand/20 ring-2 ring-brand/20"
+                                : "border-slate-200 dark:border-slate-700 hover:border-slate-300 dark:hover:border-slate-600 bg-transparent"
+                            }`}
+                          >
+                            <opt.icon className={`w-5 h-5 mx-auto mb-1.5 transition-colors ${userType === opt.value ? "text-brand" : "text-slate-400"}`} />
+                            <p className={`text-[11px] font-bold transition-colors ${userType === opt.value ? "text-brand dark:text-brand-400" : "text-slate-600 dark:text-slate-400"}`}>{opt.label}</p>
+                          </motion.button>
+                        ))}
+                      </div>
+                    </motion.div>
+
+                    <AnimatePresence>
+                      {userType === "STUDENT" && (
+                        <motion.div 
+                          initial={{ opacity: 0, height: 0 }} 
+                          animate={{ opacity: 1, height: "auto" }} 
+                          exit={{ opacity: 0, height: 0 }}
+                          className="space-y-3 p-4 bg-brand/5 dark:bg-brand/10 rounded-2xl border border-brand/20 overflow-hidden"
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <GraduationCap className="w-4 h-4 text-brand" />
+                            <span className="text-xs font-bold text-brand">Student Details</span>
+                          </div>
+                          <input value={collegeName} onChange={e => setCollegeName(e.target.value)} placeholder="College name"
+                            className="w-full px-4 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand focus:ring-2 focus:ring-brand/20 text-sm font-semibold text-slate-900 dark:text-white transition-all" />
+                          <div className="flex gap-2">
+                            <select value={yearOfStudy} onChange={e => setYearOfStudy(e.target.value)}
+                              className="flex-1 px-3 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand text-sm font-semibold text-slate-900 dark:text-white">
+                              {["1ST","2ND","3RD","4TH"].map(y => <option key={y} value={y}>{y} Year</option>)}
+                            </select>
+                            <input value={branch} onChange={e => setBranch(e.target.value)} placeholder="Branch/Dept"
+                              className="flex-1 px-3 py-3 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand text-sm font-semibold text-slate-900 dark:text-white transition-all" />
+                          </div>
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </motion.div>
+
+                  <motion.button variants={itemVariants} type="submit" disabled={loading}
+                    className="w-full bg-slate-900 dark:bg-white hover:bg-slate-800 dark:hover:bg-slate-100 text-white dark:text-slate-900 font-bold py-4 px-6 rounded-2xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-xl shadow-slate-900/20 dark:shadow-white/10 active:scale-[0.98] mt-2"
+                  >
+                    {loading ? (
+                      <div className="w-5 h-5 border-2 border-current border-t-transparent rounded-full animate-spin" />
+                    ) : (
+                      <><Sparkles className="w-4 h-4" /> Create My Account</>
+                    )}
+                  </motion.button>
+                </motion.form>
+              )}
+            </AnimatePresence>
+          </div>
+
+          {/* Footer inside card */}
+          <div className="px-8 py-4 bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-700/50 text-center backdrop-blur-md">
+            <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold flex justify-center items-center gap-1.5">
+              🏔️ Serving the campus community of Dwarahat
             </p>
           </div>
-        </div>
+        </motion.div>
 
         {/* Back to home */}
-        <div className="text-center mt-6">
-          <Link href="/" className="text-sm text-white/50 hover:text-white/80 font-medium transition-colors">
+        <motion.div 
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5 }}
+          className="text-center mt-6"
+        >
+          <Link href="/" className="text-sm text-slate-500 dark:text-slate-400 hover:text-brand font-bold transition-colors">
             ← Back to Home
           </Link>
-        </div>
+        </motion.div>
       </div>
     </div>
   );
