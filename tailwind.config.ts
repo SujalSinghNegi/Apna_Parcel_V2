@@ -51,6 +51,7 @@ const config: Config = {
         "toast-progress": "toastProgress 5s linear both",
         "count-up": "countUp 0.6s ease-out both",
         "wiggle": "wiggle 0.5s ease-in-out",
+        "search-strip": "searchStrip 1.5s ease-in-out infinite",
       },
       keyframes: {
         fadeIn: { "0%": { opacity: "0" }, "100%": { opacity: "1" } },
@@ -77,6 +78,7 @@ const config: Config = {
         toastProgress: { "0%": { width: "100%" }, "100%": { width: "0%" } },
         countUp: { "0%": { opacity: "0", transform: "translateY(10px)" }, "100%": { opacity: "1", transform: "translateY(0)" } },
         wiggle: { "0%, 100%": { transform: "rotate(0deg)" }, "25%": { transform: "rotate(-3deg)" }, "75%": { transform: "rotate(3deg)" } },
+        searchStrip: { "0%": { left: "-33%", width: "33%" }, "50%": { left: "50%", width: "40%" }, "100%": { left: "100%", width: "33%" } },
       },
       backgroundImage: {
         "gradient-radial": "radial-gradient(var(--tw-gradient-stops))",

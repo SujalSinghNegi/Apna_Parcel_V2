@@ -139,9 +139,29 @@ export const complaintsApi = {
 
 // ── Vendors ──────────────────────────────────────────────────────────────────
 export const vendorsApi = {
+  login: (email: string, password: string) => api.post('/vendors/login', { email, password }),
   register: (data: Record<string, unknown>) => api.post('/vendors/register', data),
   list: (category?: string) => api.get('/vendors', { params: category ? { category } : {} }),
   getById: (id: string) => api.get(`/vendors/${id}`),
+  // My vendor shop
+  me: () => api.get('/vendors/me'),
+  updateMe: (data: Record<string, unknown>) => api.patch('/vendors/me', data),
+  // Vendor items CRUD
+  myItems: () => api.get('/vendors/me/items'),
+  addItem: (data: Record<string, unknown>) => api.post('/vendors/me/items', data),
+  updateItem: (itemId: string, data: Record<string, unknown>) => api.patch(`/vendors/me/items/${itemId}`, data),
+  deleteItem: (itemId: string) => api.delete(`/vendors/me/items/${itemId}`),
+  // Item search across vendors
+  searchItems: (q: string, category?: string) => api.get('/vendors/items/search', { params: { q, ...(category && { category }) } }),
+  // Item requests
+  createRequest: (data: Record<string, unknown>) => api.post('/vendors/requests', data),
+  myRequests: () => api.get('/vendors/requests/mine'),
+  vendorRequests: () => api.get('/vendors/requests/vendor'),
+  respondRequest: (id: string, data: Record<string, unknown>) => api.post(`/vendors/requests/${id}/respond`, data),
+  // Vendor orders & analytics
+  myOrders: (page = 1) => api.get(`/vendors/me/orders?page=${page}`),
+  analytics: () => api.get('/vendors/me/analytics'),
+  activatePremium: () => api.post('/vendors/me/premium'),
 }
 
 // ── Tracking ─────────────────────────────────────────────────────────────────
@@ -151,6 +171,7 @@ export const trackingApi = {
 
 // ── Admin ────────────────────────────────────────────────────────────────────
 export const adminApi = {
+  login: (email: string, password: string) => api.post('/admin/login', { email, password }),
   dashboard: () => api.get('/admin/dashboard'),
   users: (params?: Record<string, unknown>) => api.get('/admin/users', { params }),
   getUserDetail: (id: string) => api.get(`/admin/users/${id}`),

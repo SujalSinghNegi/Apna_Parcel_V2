@@ -55,7 +55,7 @@ export default function VendorsPage() {
             <p className="text-sm text-gray-400 font-medium">Verified stores in Dwarahat</p>
           </div>
         </div>
-        <Button size="sm" variant="outline" onClick={() => setShowRegister(true)}>
+        <Button size="sm" variant="outline" onClick={() => setShowRegister(true)} className="hidden">
           <Plus className="w-3.5 h-3.5" /> Register Shop
         </Button>
       </div>

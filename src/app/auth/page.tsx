@@ -10,7 +10,7 @@ import Link from "next/link";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { 
   Package, Mail, Lock, User as UserIcon, ChevronRight, 
-  ArrowLeft, Sparkles, GraduationCap, MapPin, Briefcase 
+  ArrowLeft, Sparkles, GraduationCap, MapPin, Briefcase, Store 
 } from "lucide-react";
 
 type Step = "email" | "otp" | "register";
@@ -321,7 +321,10 @@ export default function AuthPage() {
           </div>
 
           {/* Footer inside card */}
-          <div className="px-8 py-4 bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-700/50 text-center backdrop-blur-md">
+          <div className="px-8 py-4 bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-700/50 text-center backdrop-blur-md space-y-2">
+            <Link href="/vendor-login" className="flex items-center justify-center gap-2 text-xs font-bold text-brand hover:text-brand-600 transition-colors">
+              <Store className="w-3.5 h-3.5" /> Own a shop? Login or Register →
+            </Link>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold flex justify-center items-center gap-1.5">
               🏔️ Serving the campus community of Dwarahat
             </p>

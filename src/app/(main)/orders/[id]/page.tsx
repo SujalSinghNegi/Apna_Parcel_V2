@@ -372,6 +372,44 @@ export default function OrderDetailPage() {
           )}
         </div>
 
+        {/* ─── Searching for Rider Banner (PENDING) ─── */}
+        {order.status === 'PENDING' && (
+          <div className="bg-gradient-to-r from-brand/10 via-brand/5 to-orange-50 dark:from-brand/20 dark:via-brand/10 dark:to-orange-500/10 rounded-2xl border border-brand/20 overflow-hidden">
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="relative w-12 h-12 shrink-0">
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="absolute inset-0 rounded-full border border-brand/40 animate-ping"
+                      style={{ animationDelay: `${i * 0.6}s`, animationDuration: '2s' }} />
+                  ))}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-8 h-8 bg-brand/20 rounded-full flex items-center justify-center">
+                      <Bike className="w-4 h-4 text-brand" />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p className="font-extrabold text-navy dark:text-white text-sm">Searching for a rider</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {order.shopMode === 'SINGLE_SHOP' && order.shopName ? `📍 ${order.shopName}` : ''}
+                    {order.shopMode === 'MULTIPLE_SHOPS' ? '🏬 Checking 2–3 shops nearby' : ''}
+                    {order.shopMode === 'ENTIRE_AREA' ? '🗺️ Searching all of Dwarahat' : ''}
+                    {order.shopMode === 'URGENT' ? '⚡ Priority delivery' : ''}
+                  </p>
+                </div>
+              </div>
+              {/* Animated search strip */}
+              <div className="relative h-1.5 bg-gray-200/60 dark:bg-gray-700/60 rounded-full overflow-hidden">
+                <div className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-brand to-orange-400 rounded-full animate-search-strip" />
+              </div>
+              <div className="flex items-center justify-between text-[11px]">
+                <span className="text-gray-400 flex items-center gap-1"><Clock className="w-3 h-3" /> Usually takes 1–3 min</span>
+                <span className="text-brand font-bold">Looking...</span>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ─── Progress Timeline ─── */}
         {!isCancelled && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">

@@ -85,7 +85,8 @@ export const Sidebar = () => {
   const sidebarWidth = collapsed ? 'w-[72px]' : 'w-[260px]'
 
   const NavItem = ({ href, icon: Icon, label, badge, onClick, highlight }: any) => {
-    const active = pathname === href || (href !== '/dashboard' && href && pathname.startsWith(href.split('?')[0]))
+    const hrefPath = href?.split('?')[0] || ''
+    const active = pathname === href || pathname === hrefPath || (href !== '/dashboard' && hrefPath && hrefPath !== '/orders' && pathname.startsWith(hrefPath))
     const Comp = onClick ? 'button' : Link
     const props = onClick ? { onClick } : { href }
     return (
@@ -198,6 +199,7 @@ export const Sidebar = () => {
             )}
           </AnimatePresence>
           <NavItem icon={Bike} label="Rider Mode" onClick={handleRiderClick} highlight />
+          <NavItem href="/vendors/dashboard" icon={Store} label="My Shop" highlight />
         </div>
 
         <div className="pt-4">

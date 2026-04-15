@@ -1,4 +1,5 @@
 export type UserType = 'STUDENT' | 'LOCAL_PERSON' | 'STAFF_FACULTY';
+export type UserRole = 'USER' | 'VENDOR' | 'ADMIN';
 export type TrustLevel = 'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3' | 'LEVEL_4';
 export type OrderStatus = 'PENDING' | 'ACCEPTED' | 'PAID' | 'RIDER_LEFT' | 'AT_SHOP' | 'ITEM_PURCHASED' | 'PHOTO_APPROVED' | 'DELIVERING' | 'ARRIVED' | 'DELIVERED' | 'CANCELLED' | 'DISPUTED' | 'ITEM_NOT_FOUND';
 export type ShopMode = 'SINGLE_SHOP' | 'MULTIPLE_SHOPS' | 'ENTIRE_AREA' | 'URGENT';
@@ -9,6 +10,7 @@ export type ComplaintStatus = 'OPEN' | 'UNDER_REVIEW' | 'RESOLVED' | 'DISMISSED'
 export interface User {
   id: string; name: string; email: string; phone?: string;
   userType: UserType; profilePhoto?: string; trustLevel: TrustLevel;
+  role: UserRole;
   rating: number; ratingCount: number; completedOrders: number;
   strikeCount: number; isVerified: boolean; isAdmin: boolean;
   isBanned: boolean; isSuspended: boolean; suspendedUntil?: string;
@@ -81,6 +83,28 @@ export interface Vendor {
   locationName?: string; category: string;
   openingTime?: string; closingTime?: string;
   phone: string; isVerified: boolean; isActive: boolean;
+  isPremium: boolean; premiumExpiresAt?: string;
+  userId?: string;
+  vendorItems?: VendorItem[];
+}
+
+export type ItemRequestStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED' | 'CANCELLED';
+
+export interface VendorItem {
+  id: string; vendorId: string; name: string;
+  photoUrl?: string; price: number; weightKg: number; isAvailable: boolean;
+  createdAt: string; updatedAt: string;
+  vendor?: Vendor;
+}
+
+export interface ItemRequest {
+  id: string; userId: string; vendorId: string;
+  itemName: string; description?: string;
+  maxPrice?: number; timerMinutes: number;
+  expiresAt: string; status: ItemRequestStatus;
+  vendorPrice?: number; vendorDescription?: string;
+  respondedAt?: string; createdAt: string; updatedAt: string;
+  vendor?: Vendor;
 }
 
 export interface Payment {
