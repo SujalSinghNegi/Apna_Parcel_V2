@@ -72,7 +72,7 @@ export default function VendorDashboard() {
 
   useEffect(() => {
     fetchRequests()
-    const interval = setInterval(fetchRequests, 10000) // poll every 10s
+    const interval = setInterval(fetchRequests, 5000) // poll every 5s
     return () => clearInterval(interval)
   }, [fetchRequests])
 

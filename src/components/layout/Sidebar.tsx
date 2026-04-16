@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import {
-  Home, ShoppingBag, Bike, Store, Shield, User, ClipboardList,
+  Home, ShoppingBag, Bike, Store, Shield, User, Users, ClipboardList,
   MessageSquare, Bell, LogOut, Package, ChevronLeft, ChevronRight,
   Star, Wallet, X, Menu, Sun, Moon,
 } from 'lucide-react'
@@ -69,8 +69,15 @@ export const Sidebar = () => {
   if (!user) return null
 
   const isVendor = user.role === 'VENDOR'
+  const isAdmin = user.isAdmin
 
-  const mainLinks = isVendor ? [
+  const mainLinks = isAdmin ? [
+    { href: '/admin', label: 'Dashboard', icon: Home },
+    { href: '/admin/users', label: 'Users', icon: Users },
+    { href: '/admin/orders', label: 'Orders', icon: ClipboardList },
+    { href: '/admin/complaints', label: 'Complaints', icon: MessageSquare },
+    { href: '/admin/vendors', label: 'Vendors', icon: Store },
+  ] : isVendor ? [
     { href: '/vendors/dashboard', label: 'My Shop', icon: Store },
     { href: '/vendors/requests', label: 'Requests', icon: Bell, badge: unreadCount },
     { href: '/notifications', label: 'Notifications', icon: Bell },
@@ -82,17 +89,19 @@ export const Sidebar = () => {
     { href: '/notifications', label: 'Notifications', icon: Bell, badge: unreadCount },
   ]
 
-  const bottomLinks = [
+  const bottomLinks = isAdmin ? [
+    { href: '/profile', label: 'Profile', icon: User },
+  ] : [
     { href: '/profile', label: 'Profile', icon: User },
     ...(!isVendor ? [{ href: '/complaints', label: 'Complaints', icon: MessageSquare }] : []),
-    ...(user.isAdmin ? [{ href: '/admin', label: 'Admin', icon: Shield }] : []),
   ]
 
   const sidebarWidth = collapsed ? 'w-[72px]' : 'w-[260px]'
 
   const NavItem = ({ href, icon: Icon, label, badge, onClick, highlight }: any) => {
     const hrefPath = href?.split('?')[0] || ''
-    const active = pathname === href || pathname === hrefPath || (href !== '/dashboard' && hrefPath && hrefPath !== '/orders' && pathname.startsWith(hrefPath))
+    const isExactOnly = hrefPath === '/dashboard' || hrefPath === '/admin' || hrefPath === '/orders'
+    const active = pathname === href || pathname === hrefPath || (!isExactOnly && hrefPath && pathname.startsWith(hrefPath))
     const Comp = onClick ? 'button' : Link
     const props = onClick ? { onClick } : { href }
     return (
@@ -196,8 +205,8 @@ export const Sidebar = () => {
         </AnimatePresence>
         {mainLinks.map(l => <NavItem key={l.href} {...l} />)}
 
-        {/* Rider mode & My Shop — only for regular users */}
-        {!isVendor && (
+        {/* Rider mode — only for regular users (not admin, not vendor) */}
+        {!isVendor && !isAdmin && (
         <div className="pt-2">
           <AnimatePresence>
             {!collapsed && (

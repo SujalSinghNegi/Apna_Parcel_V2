@@ -192,7 +192,33 @@ export const adminApi = {
 }
 
 export const getErrorMessage = (err: unknown): string => {
-  if (axios.isAxiosError(err)) return err.response?.data?.message || 'Something went wrong'
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data;
+    if (!data) {
+      if (err.code === 'ECONNABORTED') return 'Request timed out. Please check your internet and try again.'
+      if (err.code === 'ERR_NETWORK') return 'Unable to connect to server. Please check your internet connection.'
+      return 'Something went wrong. Please try again.'
+    }
+    // If backend returned a readable message, use it directly
+    if (data.message && data.message !== 'Validation failed') return data.message
+    // For validation errors, show the summary message from backend
+    if (data.message) return data.message
+  }
   if (err instanceof Error) return err.message
-  return 'Unknown error'
+  return 'Something went wrong. Please try again.'
+}
+
+/** Get field-level validation errors (for form field highlighting) */
+export const getFieldErrors = (err: unknown): Record<string, string> => {
+  if (axios.isAxiosError(err)) {
+    const data = err.response?.data
+    if (data?.errors && Array.isArray(data.errors)) {
+      const fieldErrors: Record<string, string> = {}
+      for (const e of data.errors) {
+        if (e.field) fieldErrors[e.field] = e.message
+      }
+      return fieldErrors
+    }
+  }
+  return {}
 }

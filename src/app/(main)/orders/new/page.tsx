@@ -150,7 +150,10 @@ export default function NewOrderPage() {
     searchTimerRef.current = setTimeout(() => searchItems(val), 300)
   }
 
-  const selectVendorItem = (item: VendorItem) => {
+  const [availabilityStatus, setAvailabilityStatus] = useState<'idle' | 'checking' | 'confirmed' | 'declined' | 'expired'>('idle')
+  const [activeRequestId, setActiveRequestId] = useState<string | null>(null)
+
+  const selectVendorItem = async (item: VendorItem) => {
     setSelectedVendorItem(item)
     setForm(p => ({
       ...p,
@@ -171,7 +174,25 @@ export default function NewOrderPage() {
     }
     setSearchQuery(item.name)
     setShowSearch(false)
-    toast.success(`Selected from ${item.vendor?.shopName}`)
+
+    // Auto-send availability request to the vendor
+    setAvailabilityStatus('checking')
+    try {
+      const { data } = await vendorsApi.createRequest({
+        vendorId: item.vendorId,
+        itemName: item.name,
+        description: `Checking availability for ${item.name} (₹${item.price})`,
+        maxPrice: item.price,
+        timerMinutes: 5,
+      })
+      setActiveRequestId(data.data?.id || null)
+      toast.success(`Checking availability with ${item.vendor?.shopName}...`)
+      fetchMyRequests()
+    } catch (e) {
+      // If request fails (e.g. vendor not verified), still allow manual order
+      setAvailabilityStatus('idle')
+      toast.success(`Selected from ${item.vendor?.shopName}`)
+    }
   }
 
   const clearVendorSelection = () => {
@@ -180,6 +201,8 @@ export default function NewOrderPage() {
     setShopCoords(null)
     setSelectedWeightOption(0)
     setCustomWeight(false)
+    setAvailabilityStatus('idle')
+    setActiveRequestId(null)
   }
 
   // ── Item request (ask vendor if they have it) ────────────────────────────
@@ -216,13 +239,13 @@ export default function NewOrderPage() {
     finally { setRequestLoading(false) }
   }
 
-  // Poll requests
+  // Poll requests (faster when checking availability)
   useEffect(() => {
     fetchMyRequests()
     fetchAllVendors()
-    const interval = setInterval(fetchMyRequests, 15000)
+    const interval = setInterval(fetchMyRequests, availabilityStatus === 'checking' ? 3000 : 15000)
     return () => clearInterval(interval)
-  }, [])
+  }, [availabilityStatus])
 
   // Countdown tick for pending request timers (every second)
   useEffect(() => {
@@ -231,6 +254,25 @@ export default function NewOrderPage() {
     const interval = setInterval(() => setCountdownTick(t => t + 1), 1000)
     return () => clearInterval(interval)
   }, [myRequests])
+
+  // Track the active availability request status
+  useEffect(() => {
+    if (!activeRequestId || availabilityStatus !== 'checking') return
+    const req = myRequests.find(r => r.id === activeRequestId)
+    if (!req) return
+    if (req.status === 'ACCEPTED') {
+      setAvailabilityStatus('confirmed')
+      // Update price if vendor gave a price
+      if (req.vendorPrice) setF('expectedPrice', String(req.vendorPrice))
+      setF('itemRequestId', req.id)
+      toast.success(`${req.vendor?.shopName || 'Vendor'} confirmed availability!`)
+    } else if (req.status === 'REJECTED') {
+      setAvailabilityStatus('declined')
+      toast.error(`${req.vendor?.shopName || 'Vendor'} says item is not available`)
+    } else if (req.status === 'PENDING' && new Date(req.expiresAt) < new Date()) {
+      setAvailabilityStatus('expired')
+    }
+  }, [myRequests, activeRequestId, availabilityStatus])
 
   const getTimeRemaining = (expiresAt: string) => {
     const diff = new Date(expiresAt).getTime() - Date.now()
@@ -262,6 +304,8 @@ export default function NewOrderPage() {
       shopLocation: '',
     }))
     setSelectedVendorItem(null)
+    setAvailabilityStatus('idle')
+    setActiveRequestId(null)
     toast.success('Switched to "Search Area" mode — rider will find the item (+₹25)')
   }
 
@@ -395,18 +439,88 @@ export default function NewOrderPage() {
             )}
           </div>
 
-          {/* Selected vendor item badge */}
+          {/* Selected vendor item badge with availability status */}
           {selectedVendorItem && (
-            <div className="flex items-center gap-2 bg-brand-50 dark:bg-brand/10 rounded-xl px-3 py-2">
-              <div className="text-lg">{CAT_EMOJI[selectedVendorItem.vendor?.category || ''] || '📦'}</div>
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-bold text-brand">{selectedVendorItem.name}</p>
-                <p className="text-[10px] text-gray-500">{selectedVendorItem.vendor?.shopName}</p>
+            <div className="space-y-2">
+              <div className={cn('flex items-center gap-2 rounded-xl px-3 py-2',
+                availabilityStatus === 'confirmed' ? 'bg-green-50 dark:bg-green-500/10 border border-green-200 dark:border-green-500/30' :
+                availabilityStatus === 'declined' || availabilityStatus === 'expired' ? 'bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/30' :
+                availabilityStatus === 'checking' ? 'bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30' :
+                'bg-brand-50 dark:bg-brand/10')}>
+                <div className="text-lg">{CAT_EMOJI[selectedVendorItem.vendor?.category || ''] || '📦'}</div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-brand">{selectedVendorItem.name}</p>
+                  <p className="text-[10px] text-gray-500">{selectedVendorItem.vendor?.shopName}</p>
+                  {availabilityStatus === 'checking' && (
+                    <p className="text-[10px] text-amber-600 font-bold flex items-center gap-1 mt-0.5">
+                      <Loader2 className="w-2.5 h-2.5 animate-spin" /> Checking availability...
+                    </p>
+                  )}
+                  {availabilityStatus === 'confirmed' && (
+                    <p className="text-[10px] text-green-600 font-bold flex items-center gap-1 mt-0.5">
+                      <Check className="w-2.5 h-2.5" /> Available — ready to order!
+                    </p>
+                  )}
+                  {availabilityStatus === 'declined' && (
+                    <p className="text-[10px] text-red-600 font-bold mt-0.5">Not available at this shop</p>
+                  )}
+                  {availabilityStatus === 'expired' && (
+                    <p className="text-[10px] text-red-600 font-bold mt-0.5">Vendor did not respond</p>
+                  )}
+                </div>
+                <p className="text-sm font-bold text-brand">{fmt.currency(selectedVendorItem.price)}</p>
+                <button onClick={clearVendorSelection} className="p-1 rounded-lg hover:bg-brand/10 transition-colors">
+                  <X className="w-3.5 h-3.5 text-gray-400" />
+                </button>
               </div>
-              <p className="text-sm font-bold text-brand">{fmt.currency(selectedVendorItem.price)}</p>
-              <button onClick={clearVendorSelection} className="p-1 rounded-lg hover:bg-brand/10 transition-colors">
-                <X className="w-3.5 h-3.5 text-gray-400" />
-              </button>
+
+              {/* Fallback options when item is not available or vendor didn't respond */}
+              {(availabilityStatus === 'declined' || availabilityStatus === 'expired') && (
+                <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 space-y-2">
+                  <p className="text-xs font-bold text-navy dark:text-white">
+                    {availabilityStatus === 'declined' ? 'Item not available here. What would you like to do?' : 'No response from vendor. Try:'}
+                  </p>
+                  <div className="flex gap-2">
+                    {activeRequestId && (
+                      <button onClick={() => handleBroadcastRequest(activeRequestId)} disabled={broadcastLoading}
+                        className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-brand text-white text-xs font-bold hover:bg-brand/90 transition-colors disabled:opacity-50">
+                        {broadcastLoading ? <Loader2 className="w-3 h-3 animate-spin" /> : <Send className="w-3 h-3" />}
+                        Search all vendors
+                      </button>
+                    )}
+                    <button onClick={() => {
+                      const req = myRequests.find(r => r.id === activeRequestId)
+                      if (req) handleLetRiderDecide(req)
+                      else {
+                        setForm(p => ({ ...p, shopMode: 'ENTIRE_AREA', vendorId: '', shopName: '', shopLocation: '' }))
+                        setSelectedVendorItem(null)
+                        setAvailabilityStatus('idle')
+                        setActiveRequestId(null)
+                        toast.success('Switched to "Search Area" — rider will find it (+₹25)')
+                      }
+                    }}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 px-3 rounded-xl bg-gray-800 dark:bg-gray-700 text-white text-xs font-bold hover:bg-gray-700 dark:hover:bg-gray-600 transition-colors">
+                      <Users className="w-3 h-3" />
+                      Let rider decide
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Checking availability timer */}
+              {availabilityStatus === 'checking' && activeRequestId && (() => {
+                const req = myRequests.find(r => r.id === activeRequestId)
+                if (!req) return null
+                const remaining = getTimeRemaining(req.expiresAt)
+                return (
+                  <div className="flex items-center justify-center gap-2 bg-amber-50 dark:bg-amber-500/10 rounded-xl px-3 py-2">
+                    <Timer className="w-3.5 h-3.5 text-amber-600 animate-pulse" />
+                    <span className={cn('text-xs font-bold tabular-nums', remaining.minutes < 1 ? 'text-red-600' : 'text-amber-700 dark:text-amber-400')}>
+                      Waiting for response: {remaining.text}
+                    </span>
+                  </div>
+                )
+              })()}
             </div>
           )}
 

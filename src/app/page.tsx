@@ -93,12 +93,13 @@ export default function LandingPage() {
     return () => clearTimeout(timer);
   }, []);
 
-  // 3. If already logged in, redirect to dashboard
+  // 3. If already logged in, redirect based on role
+  const user = useAuthStore((state: any) => state.user);
   useEffect(() => {
-    if (hydrated && accessToken) {
-      router.replace("/dashboard");
+    if (hydrated && accessToken && user) {
+      router.replace(user.isAdmin ? "/admin" : user.role === "VENDOR" ? "/vendors/dashboard" : "/dashboard");
     }
-  }, [hydrated, accessToken, router]);
+  }, [hydrated, accessToken, user, router]);
 
   // Determine if we should show the splash screen
   // Show it if: We haven't hydrated yet OR the artificial timer isn't done OR we are redirecting

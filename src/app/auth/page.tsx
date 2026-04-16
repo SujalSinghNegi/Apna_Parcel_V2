@@ -69,7 +69,7 @@ export default function AuthPage() {
         setAuth(user, accessToken, refreshToken);
         initSocket(accessToken);
         toast.success("Welcome back, " + user.name + "!");
-        router.push("/dashboard");
+        router.push(user.isAdmin ? "/admin" : user.role === "VENDOR" ? "/vendors/dashboard" : "/dashboard");
       }
     } catch (e) { toast.error(getErrorMessage(e)); } finally { setLoading(false); }
   };
@@ -86,7 +86,7 @@ export default function AuthPage() {
       setAuth(user, accessToken, refreshToken);
       initSocket(accessToken);
       toast.success("Welcome to ApnaParcel, " + user.name + "!");
-      router.push("/dashboard");
+      router.push(user.isAdmin ? "/admin" : user.role === "VENDOR" ? "/vendors/dashboard" : "/dashboard");
     } catch (e) { toast.error(getErrorMessage(e)); } finally { setLoading(false); }
   };
 
