@@ -627,27 +627,48 @@ export default function NewOrderPage() {
                     <span className="text-xs text-gray-500">Searching shops...</span>
                   </div>
                 ) : searchResults.length > 0 ? (
-                  searchResults.map(item => (
-                  <button key={item.id} onClick={() => selectVendorItem(item)}
-                    className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left border-b border-gray-50 dark:border-gray-800 last:border-0">
-                    {item.photoUrl ? (
-                      <img src={item.photoUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                    ) : (
-                      <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center text-lg">
-                        {item.vendor?.category ? CAT_EMOJI[item.vendor.category] || '📦' : '📦'}
+                  <>
+                  {searchResults.map(item => (
+                  <div key={item.id} className="flex items-center gap-3 p-3 border-b border-gray-50 dark:border-gray-800 last:border-0">
+                    <button onClick={() => selectVendorItem(item)} className="flex items-center gap-3 flex-1 min-w-0 text-left hover:opacity-80 transition-opacity">
+                      {item.photoUrl ? (
+                        <img src={item.photoUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                      ) : (
+                        <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center text-lg shrink-0">
+                          {item.vendor?.category ? CAT_EMOJI[item.vendor.category] || '📦' : '📦'}
+                        </div>
+                      )}
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-navy dark:text-white text-sm truncate">{item.name}</p>
+                        <p className="text-[11px] text-gray-400 truncate">{item.vendor?.shopName}</p>
                       </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-navy dark:text-white text-sm truncate">{item.name}</p>
-                      <p className="text-[11px] text-gray-400 truncate">{item.vendor?.shopName}</p>
-                    </div>
-                    <p className="font-bold text-brand text-sm">{fmt.currency(item.price)}</p>
-                  </button>
-                ))
+                      <p className="font-bold text-brand text-sm shrink-0">{fmt.currency(item.price)}</p>
+                    </button>
+                    <button onClick={() => {
+                      setRequestForm({ vendorId: item.vendorId, itemName: item.name, description: '', maxPrice: String(item.price), timerMinutes: '2' })
+                      setShowSearch(false)
+                      setShowRequestModal(true)
+                      fetchAllVendors()
+                    }}
+                      className="shrink-0 flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-50 dark:bg-amber-500/10 text-amber-700 dark:text-amber-400 text-[10px] font-bold hover:bg-amber-100 dark:hover:bg-amber-500/20 transition-colors border border-amber-200 dark:border-amber-500/30">
+                      <Clock className="w-3 h-3" /> Check Availability
+                    </button>
+                  </div>
+                  ))}
+                  </>
                 ) : (
-                  <div className="p-4 text-center">
+                  <div className="p-4 text-center space-y-3">
                     <p className="text-xs text-gray-400">No items found for &quot;{activeItem.name}&quot;</p>
-                    <p className="text-[10px] text-gray-400 mt-1">You can still type the item name manually</p>
+                    <p className="text-[10px] text-gray-400">Item not in our database yet — ask vendors directly!</p>
+                    <button onClick={() => {
+                      setRequestForm(p => ({ ...p, itemName: activeItem.name, vendorId: '', description: '', maxPrice: '', timerMinutes: '2' }))
+                      setShowSearch(false)
+                      setShowRequestModal(true)
+                      fetchAllVendors()
+                    }}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-brand text-white text-xs font-bold hover:bg-brand/90 transition-colors">
+                      <Send className="w-3.5 h-3.5" /> Search Among Vendors
+                    </button>
                   </div>
                 )}
               </div>
