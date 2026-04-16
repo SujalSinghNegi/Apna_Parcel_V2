@@ -224,12 +224,27 @@ export default function NewOrderPage() {
     } catch (e) { toast.error(getErrorMessage(e)) }
   }
 
+  const handleDeleteRequest = async (requestId: string) => {
+    try {
+      await vendorsApi.deleteRequest(requestId)
+      toast.success('Request deleted')
+      if (requestId === activeRequestId) {
+        setAvailabilityStatus('idle')
+        setActiveRequestId(null)
+      }
+      fetchMyRequests()
+    } catch (e) { toast.error(getErrorMessage(e)) }
+  }
+
   // ── Item request (ask vendor if they have it) ────────────────────────────
   const [allVendors, setAllVendors] = useState<Vendor[]>([])
   const fetchMyRequests = async () => {
     try {
       const { data } = await vendorsApi.myRequests()
-      setMyRequests(data.data || [])
+      const all: ItemRequest[] = data.data || []
+      // Only show recent requests (last 24h) and exclude cancelled
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000
+      setMyRequests(all.filter(r => r.status !== 'CANCELLED' && new Date(r.createdAt).getTime() > cutoff))
     } catch { /* ignore */ }
   }
 
@@ -253,7 +268,17 @@ export default function NewOrderPage() {
       })
       toast.success('Request sent to vendor! You\'ll be notified when they respond.')
       setShowRequestModal(false)
-      fetchMyRequests()
+      // Track this request for auto-fill when vendor responds
+      const reqs = await vendorsApi.myRequests()
+      const all: ItemRequest[] = reqs.data.data || []
+      const cutoff = Date.now() - 24 * 60 * 60 * 1000
+      const latestRequests = all.filter(r => r.status !== 'CANCELLED' && new Date(r.createdAt).getTime() > cutoff)
+      setMyRequests(latestRequests)
+      const latest = latestRequests.find(r => r.status === 'PENDING' && r.itemName === requestForm.itemName && r.vendorId === requestForm.vendorId)
+      if (latest) {
+        setActiveRequestId(latest.id)
+        setAvailabilityStatus('checking')
+      }
     } catch (e) { toast.error(getErrorMessage(e)) }
     finally { setRequestLoading(false) }
   }
@@ -281,9 +306,19 @@ export default function NewOrderPage() {
     if (!req) return
     if (req.status === 'ACCEPTED') {
       setAvailabilityStatus('confirmed')
-      // Update price if vendor gave a price
-      if (req.vendorPrice) setF('expectedPrice', String(req.vendorPrice))
+      // Auto-fill item details from vendor response
+      const vendorPrice = req.vendorPrice || req.maxPrice || 0
+      updateItem(activeItemIdx, {
+        name: req.itemName,
+        price: String(vendorPrice),
+        vendorId: req.vendorId,
+        shopName: req.vendor?.shopName || '',
+      })
       setF('itemRequestId', req.id)
+      if (req.vendor?.locationName) setF('shopLocation', req.vendor.locationName)
+      if (req.vendor?.locationLat && req.vendor?.locationLng) {
+        setShopCoords({ lat: req.vendor.locationLat, lng: req.vendor.locationLng })
+      }
       toast.success(`${req.vendor?.shopName || 'Vendor'} confirmed availability!`)
     } else if (req.status === 'REJECTED') {
       setAvailabilityStatus('declined')
@@ -410,7 +445,7 @@ export default function NewOrderPage() {
       <div className="max-w-2xl mx-auto px-4 pt-4 space-y-3">
 
         {/* ── Vendor Status & Requests ─────────────────────────────────────── */}
-        {(selectedVendorItem || acceptedRequests.length > 0 || pendingRequests.length > 0) && (
+        {(selectedVendorItem || activeRequestId || pendingRequests.length > 0) && (
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-4 space-y-3">
           <h2 className="font-bold text-navy dark:text-white text-sm flex items-center gap-2">
             <Search className="w-4 h-4 text-brand" /> Vendor Status
@@ -505,20 +540,24 @@ export default function NewOrderPage() {
             </div>
           )}
 
-          {/* Accepted requests that can auto-fill */}
-          {acceptedRequests.length > 0 && (
+          {/* Accepted requests that can auto-fill (only show when user has active interactions) */}
+          {activeRequestId && acceptedRequests.length > 0 && (
             <div className="space-y-1">
               <p className="text-xs font-bold text-green-600 flex items-center gap-1"><Check className="w-3 h-3" /> Accepted by vendor</p>
               {acceptedRequests.map(req => (
                 <button key={req.id} onClick={() => {
-                  setForm(p => ({
-                    ...p,
-                    itemName: req.itemName,
-                    expectedPrice: String(req.vendorPrice || ''),
+                  updateItem(activeItemIdx, {
+                    name: req.itemName,
+                    price: String(req.vendorPrice || ''),
                     vendorId: req.vendorId,
-                    itemRequestId: req.id,
                     shopName: req.vendor?.shopName || '',
-                  }))
+                  })
+                  setF('itemRequestId', req.id)
+                  if (req.vendor?.locationName) setF('shopLocation', req.vendor.locationName)
+                  if (req.vendor?.locationLat && req.vendor?.locationLng) {
+                    setShopCoords({ lat: req.vendor.locationLat, lng: req.vendor.locationLng })
+                  }
+                  setSearchQuery(req.itemName)
                   toast.success(`Auto-filled from ${req.vendor?.shopName}`)
                 }}
                   className="w-full flex items-center gap-3 p-2.5 bg-green-50 dark:bg-green-500/10 rounded-xl text-left hover:bg-green-100 dark:hover:bg-green-500/20 transition-colors">
@@ -798,7 +837,10 @@ export default function NewOrderPage() {
             <div className="p-4 space-y-1.5">
               <h3 className="font-bold text-navy dark:text-white text-sm mb-2">Price Breakdown</h3>
               {[
-                { l: 'Item price', v: price },
+                ...(items.filter(it => parseFloat(it.price) > 0).length > 1
+                  ? items.filter(it => parseFloat(it.price) > 0).map((it, i) => ({ l: `${it.name || `Item ${i + 1}`}`, v: parseFloat(it.price) || 0 }))
+                  : []),
+                { l: items.filter(it => parseFloat(it.price) > 0).length > 1 ? 'Items subtotal' : 'Item price', v: price },
                 { l: `Delivery (base ₹${baseFee} + ${weight}kg + ${dist}km)`, v: deliveryFee },
                 ...(modeFee > 0 ? [{ l: 'Shop mode fee', v: modeFee }] : []),
                 { l: 'Platform fee', v: platformFee },
@@ -839,33 +881,46 @@ export default function NewOrderPage() {
                   <p className="font-bold text-navy dark:text-white text-sm">{req.itemName}</p>
                   <p className="text-xs text-gray-400">{req.vendor?.shopName}</p>
                 </div>
-                {req.status === 'PENDING' && remaining ? (
-                  !remaining.expired ? (
-                    <div className="flex items-center gap-1 bg-amber-100 dark:bg-amber-500/20 px-2 py-0.5 rounded-full">
-                      <Timer className="w-3 h-3 text-amber-600 animate-pulse" />
-                      <span className={cn('text-[10px] font-bold tabular-nums', remaining.minutes < 1 ? 'text-red-600' : 'text-amber-700')}>
-                        {remaining.text}
-                      </span>
-                    </div>
+                <div className="flex items-center gap-1.5">
+                  {req.status === 'PENDING' && remaining ? (
+                    !remaining.expired ? (
+                      <div className="flex items-center gap-1 bg-amber-100 dark:bg-amber-500/20 px-2 py-0.5 rounded-full">
+                        <Timer className="w-3 h-3 text-amber-600 animate-pulse" />
+                        <span className={cn('text-[10px] font-bold tabular-nums', remaining.minutes < 1 ? 'text-red-600' : 'text-amber-700')}>
+                          {remaining.text}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 rounded-full">Timed out</span>
+                    )
                   ) : (
-                    <span className="text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 rounded-full">Timed out</span>
-                  )
-                ) : (
-                  <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full',
-                    req.status === 'ACCEPTED' ? 'bg-green-100 text-green-700' :
-                    req.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
-                    'bg-gray-100 text-gray-500'
-                  )}>{req.status}</span>
-                )}
+                    <span className={cn('text-[10px] font-bold px-2 py-0.5 rounded-full',
+                      req.status === 'ACCEPTED' ? 'bg-green-100 text-green-700' :
+                      req.status === 'REJECTED' ? 'bg-red-100 text-red-700' :
+                      'bg-gray-100 text-gray-500'
+                    )}>{req.status}</span>
+                  )}
+                  <button onClick={() => handleDeleteRequest(req.id)}
+                    className="p-1 rounded-lg text-gray-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+                    title="Delete request">
+                    <Trash2 className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
               {req.status === 'ACCEPTED' && req.vendorPrice && (
                 <div className="mt-2 flex items-center justify-between">
                   <p className="text-sm text-green-700 dark:text-green-400">Vendor price: {fmt.currency(req.vendorPrice)}</p>
                   <Button size="sm" onClick={() => {
-                    setForm(p => ({
-                      ...p, itemName: req.itemName, expectedPrice: String(req.vendorPrice),
-                      vendorId: req.vendorId, itemRequestId: req.id, shopName: req.vendor?.shopName || '',
-                    }))
+                    updateItem(activeItemIdx, {
+                      name: req.itemName, price: String(req.vendorPrice),
+                      vendorId: req.vendorId, shopName: req.vendor?.shopName || '',
+                    })
+                    setF('itemRequestId', req.id)
+                    if (req.vendor?.locationName) setF('shopLocation', req.vendor.locationName)
+                    if (req.vendor?.locationLat && req.vendor?.locationLng) {
+                      setShopCoords({ lat: req.vendor.locationLat, lng: req.vendor.locationLng })
+                    }
+                    setSearchQuery(req.itemName)
                     setShowMyRequests(false)
                     toast.success('Order auto-filled!')
                   }}>Use this</Button>

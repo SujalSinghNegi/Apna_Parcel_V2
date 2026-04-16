@@ -160,6 +160,7 @@ export const vendorsApi = {
   respondRequest: (id: string, data: Record<string, unknown>) => api.post(`/vendors/requests/${id}/respond`, data),
   broadcastRequest: (id: string) => api.post(`/vendors/requests/${id}/broadcast`),
   cancelRequest: (id: string) => api.post(`/vendors/requests/${id}/cancel`),
+  deleteRequest: (id: string) => api.delete(`/vendors/requests/${id}`),
   // Vendor orders & analytics
   myOrders: (page = 1) => api.get(`/vendors/me/orders?page=${page}`),
   analytics: () => api.get('/vendors/me/analytics'),
