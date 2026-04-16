@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
 import { fmt, cn } from '@/lib/utils'
 import { ShopMode, TRUST_LEVEL_LIMITS, VendorItem, Vendor, ItemRequest } from '@/types'
-import { Package, MapPin, Store, ArrowLeft, Navigation, Search, Loader2, ShoppingBag, Clock, Timer, Check, X, Crown, Send, Users } from 'lucide-react'
+import { Package, MapPin, Store, ArrowLeft, Navigation, Search, Loader2, ShoppingBag, Clock, Timer, Check, X, Crown, Send, Users, Plus, Trash2 } from 'lucide-react'
 import toast from 'react-hot-toast'
 import { useRouter } from 'next/navigation'
 import type { LatLng } from '@/components/ui/MapPicker'
@@ -41,10 +41,34 @@ export default function NewOrderPage() {
   const router = useRouter()
   const { user } = useAuthStore()
   const [loading, setLoading] = useState(false)
+  // ── Multi-item state ──────────────────────────────────────────────────
+  type OrderItem = { id: number; name: string; description: string; price: string; weightKg: string; vendorId: string; shopName: string; vendorItem: VendorItem | null }
+  const [items, setItems] = useState<OrderItem[]>([{ id: 1, name: '', description: '', price: '', weightKg: '0.5', vendorId: '', shopName: '', vendorItem: null }])
+  const [activeItemIdx, setActiveItemIdx] = useState(0)
+  const activeItem = items[activeItemIdx] || items[0]
+
+  const updateItem = (idx: number, patch: Partial<OrderItem>) => {
+    setItems(prev => prev.map((it, i) => i === idx ? { ...it, ...patch } : it))
+  }
+  const addItem = () => {
+    const newId = Math.max(...items.map(i => i.id)) + 1
+    setItems(prev => [...prev, { id: newId, name: '', description: '', price: '', weightKg: '0.5', vendorId: '', shopName: '', vendorItem: null }])
+    setActiveItemIdx(items.length)
+    setSearchQuery('')
+    setSearchResults([])
+    setSelectedVendorItem(null)
+    setShowSearch(false)
+  }
+  const removeItem = (idx: number) => {
+    if (items.length <= 1) return
+    setItems(prev => prev.filter((_, i) => i !== idx))
+    if (activeItemIdx >= idx && activeItemIdx > 0) setActiveItemIdx(activeItemIdx - 1)
+  }
+
   const [form, setForm] = useState({
-    itemName: '', itemDescription: '', shopName: '', shopLocation: '',
-    shopMode: 'SINGLE_SHOP' as ShopMode, expectedPrice: '', weightKg: '0.5',
-    tip: '0', declaredEtaMinutes: '', vendorId: '', itemRequestId: '',
+    shopLocation: '',
+    shopMode: 'SINGLE_SHOP' as ShopMode,
+    tip: '0', declaredEtaMinutes: '', itemRequestId: '',
   })
   const [shopCoords, setShopCoords] = useState<LatLng | null>(null)
   const [clientCoords, setClientCoords] = useState<LatLng | null>(null)
@@ -64,7 +88,7 @@ export default function NewOrderPage() {
 
   // ── Item request state ──────────────────────────────────────────────────
   const [showRequestModal, setShowRequestModal] = useState(false)
-  const [requestForm, setRequestForm] = useState({ vendorId: '', itemName: '', description: '', maxPrice: '', timerMinutes: '30' })
+  const [requestForm, setRequestForm] = useState({ vendorId: '', itemName: '', description: '', maxPrice: '', timerMinutes: '2' })
   const [requestLoading, setRequestLoading] = useState(false)
   const [myRequests, setMyRequests] = useState<ItemRequest[]>([])
   const [showMyRequests, setShowMyRequests] = useState(false)
@@ -145,7 +169,9 @@ export default function NewOrderPage() {
 
   const handleSearchInput = (val: string) => {
     setSearchQuery(val)
-    setF('itemName', val)
+    updateItem(activeItemIdx, { name: val })
+    if (val.length >= 2) setShowSearch(true)
+    else setShowSearch(false)
     if (searchTimerRef.current) clearTimeout(searchTimerRef.current)
     searchTimerRef.current = setTimeout(() => searchItems(val), 300)
   }
@@ -155,15 +181,15 @@ export default function NewOrderPage() {
 
   const selectVendorItem = async (item: VendorItem) => {
     setSelectedVendorItem(item)
-    setForm(p => ({
-      ...p,
-      itemName: item.name,
-      expectedPrice: String(item.price),
+    updateItem(activeItemIdx, {
+      name: item.name,
+      price: String(item.price),
       weightKg: String(item.weightKg || 0.5),
       shopName: item.vendor?.shopName || '',
-      shopLocation: item.vendor?.locationName || '',
       vendorId: item.vendorId,
-    }))
+      vendorItem: item,
+    })
+    if (item.vendor?.locationName) setF('shopLocation', item.vendor.locationName)
     // Set weight option to match
     const matchIdx = WEIGHT_OPTIONS.findIndex(o => o.value === item.weightKg)
     if (matchIdx >= 0) { setSelectedWeightOption(matchIdx); setCustomWeight(false) }
@@ -174,35 +200,28 @@ export default function NewOrderPage() {
     }
     setSearchQuery(item.name)
     setShowSearch(false)
-
-    // Auto-send availability request to the vendor
-    setAvailabilityStatus('checking')
-    try {
-      const { data } = await vendorsApi.createRequest({
-        vendorId: item.vendorId,
-        itemName: item.name,
-        description: `Checking availability for ${item.name} (₹${item.price})`,
-        maxPrice: item.price,
-        timerMinutes: 5,
-      })
-      setActiveRequestId(data.data?.id || null)
-      toast.success(`Checking availability with ${item.vendor?.shopName}...`)
-      fetchMyRequests()
-    } catch (e) {
-      // If request fails (e.g. vendor not verified), still allow manual order
-      setAvailabilityStatus('idle')
-      toast.success(`Selected from ${item.vendor?.shopName}`)
-    }
+    toast.success(`Added from ${item.vendor?.shopName}`)
   }
 
   const clearVendorSelection = () => {
     setSelectedVendorItem(null)
-    setForm(p => ({ ...p, vendorId: '', shopName: '', shopLocation: '', expectedPrice: '', weightKg: '0.5' }))
-    setShopCoords(null)
+    updateItem(activeItemIdx, { vendorId: '', shopName: '', price: '', weightKg: '0.5', vendorItem: null })
     setSelectedWeightOption(0)
     setCustomWeight(false)
     setAvailabilityStatus('idle')
     setActiveRequestId(null)
+  }
+
+  const handleCancelRequest = async (requestId: string) => {
+    try {
+      await vendorsApi.cancelRequest(requestId)
+      toast.success('Request cancelled')
+      if (requestId === activeRequestId) {
+        setAvailabilityStatus('idle')
+        setActiveRequestId(null)
+      }
+      fetchMyRequests()
+    } catch (e) { toast.error(getErrorMessage(e)) }
   }
 
   // ── Item request (ask vendor if they have it) ────────────────────────────
@@ -230,7 +249,7 @@ export default function NewOrderPage() {
         itemName: requestForm.itemName,
         description: requestForm.description || undefined,
         maxPrice: requestForm.maxPrice ? parseFloat(requestForm.maxPrice) : undefined,
-        timerMinutes: parseInt(requestForm.timerMinutes),
+        timerMinutes: parseInt(requestForm.timerMinutes) || 2,
       })
       toast.success('Request sent to vendor! You\'ll be notified when they respond.')
       setShowRequestModal(false)
@@ -309,8 +328,10 @@ export default function NewOrderPage() {
     toast.success('Switched to "Search Area" mode — rider will find the item (+₹25)')
   }
 
-  const price = parseFloat(form.expectedPrice) || 0
-  const weight = parseFloat(form.weightKg) || 0
+  const totalItemPrice = items.reduce((s, it) => s + (parseFloat(it.price) || 0), 0)
+  const totalWeight = items.reduce((s, it) => s + (parseFloat(it.weightKg) || 0), 0)
+  const price = totalItemPrice
+  const weight = totalWeight
   const dist = (shopCoords && clientCoords) ? Math.round(haversine(shopCoords, clientCoords) * 10) / 10 : 0
   const tip = parseFloat(form.tip) || 0
   const modeFees: Record<ShopMode, number> = { SINGLE_SHOP: 0, MULTIPLE_SHOPS: 15, ENTIRE_AREA: 25, URGENT: 0 }
@@ -322,21 +343,28 @@ export default function NewOrderPage() {
   const limit = user ? TRUST_LEVEL_LIMITS[user.trustLevel] : 500
 
   const handleSubmit = async () => {
-    if (!form.itemName) { toast.error('Item name is required'); return }
-    if (!form.expectedPrice || price <= 0) { toast.error('Enter expected price'); return }
+    const validItems = items.filter(it => it.name.trim())
+    if (validItems.length === 0) { toast.error('Add at least one item'); return }
+    if (price <= 0) { toast.error('Enter expected price for items'); return }
     if (price > limit) { toast.error(`Your trust level allows max ₹${limit === Infinity ? '∞' : limit}`); return }
     if (!clientCoords) { toast.error('Please select your current location'); return }
     setLoading(true)
     try {
+      const validItems = items.filter(it => it.name.trim())
+      const itemName = validItems.map(it => it.name).join(', ')
+      const itemDescription = validItems.map(it => it.description).filter(Boolean).join('; ') || undefined
+      const shopName = validItems.map(it => it.shopName).filter(Boolean).join(', ') || undefined
+      const vendorId = validItems[0]?.vendorId || undefined
       const { data } = await ordersApi.create({
-        itemName: form.itemName, itemDescription: form.itemDescription || undefined,
-        shopName: form.shopName || undefined, shopLocation: form.shopLocation || undefined,
+        itemName, itemDescription,
+        shopName, shopLocation: form.shopLocation || undefined,
         shopMode: form.shopMode, expectedPrice: price, weightKg: weight,
         distanceKm: dist, tip, declaredEtaMinutes: form.declaredEtaMinutes ? parseInt(form.declaredEtaMinutes) : undefined,
-        vendorId: form.vendorId || undefined, itemRequestId: form.itemRequestId || undefined,
+        vendorId: vendorId || undefined, itemRequestId: form.itemRequestId || undefined,
       })
       // Show searching overlay before redirect
-      setSearchingOverlay({ show: true, orderId: data.data.id, shopMode: form.shopMode, shopName: form.shopName, step: 0 })
+      const shopName2 = validItems.map(it => it.shopName).filter(Boolean).join(', ')
+      setSearchingOverlay({ show: true, orderId: data.data.id, shopMode: form.shopMode, shopName: shopName2, step: 0 })
       setLoading(false)
     } catch (e) { toast.error(getErrorMessage(e)); setLoading(false) }
   }
@@ -363,7 +391,7 @@ export default function NewOrderPage() {
   const pendingRequests = myRequests.filter(r => r.status === 'PENDING')
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-32">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950 pb-20 md:pb-4">
       {/* Top bar */}
       <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-b border-gray-100 dark:border-gray-800">
         <div className="max-w-2xl mx-auto flex items-center gap-3 px-4 h-14">
@@ -381,63 +409,16 @@ export default function NewOrderPage() {
 
       <div className="max-w-2xl mx-auto px-4 pt-4 space-y-3">
 
-        {/* ── Item Search from Vendors ─────────────────────────────────────── */}
+        {/* ── Vendor Status & Requests ─────────────────────────────────────── */}
+        {(selectedVendorItem || acceptedRequests.length > 0 || pendingRequests.length > 0) && (
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-4 space-y-3">
           <h2 className="font-bold text-navy dark:text-white text-sm flex items-center gap-2">
-            <Search className="w-4 h-4 text-brand" /> Search from Shops
+            <Search className="w-4 h-4 text-brand" /> Vendor Status
             <button onClick={() => setShowRequestModal(true)}
               className="ml-auto text-[11px] font-bold text-brand hover:underline flex items-center gap-1">
               <Send className="w-3 h-3" /> Request Item
             </button>
           </h2>
-
-          {/* Search input */}
-          <div className="relative">
-            <div className="flex gap-2">
-              <div className="flex-1 relative">
-                <Input placeholder="Search items across all shops..."
-                  icon={searchLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Search className="w-4 h-4" />}
-                  value={searchQuery}
-                  onChange={e => handleSearchInput(e.target.value)}
-                  onFocus={() => searchQuery.length >= 2 && setShowSearch(true)} />
-              </div>
-            </div>
-
-            {/* Search results dropdown */}
-            {showSearch && searchResults.length > 0 && (
-              <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 max-h-72 overflow-y-auto">
-                {searchResults.map(item => (
-                  <button key={item.id} onClick={() => selectVendorItem(item)}
-                    className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left border-b border-gray-50 dark:border-gray-800 last:border-0">
-                    {item.photoUrl ? (
-                      <img src={item.photoUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
-                    ) : (
-                      <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center text-lg">
-                        {item.vendor?.category ? CAT_EMOJI[item.vendor.category] || '📦' : '📦'}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-navy dark:text-white text-sm truncate">{item.name}</p>
-                      <p className="text-[11px] text-gray-400 truncate">{item.vendor?.shopName} · {item.vendor?.locationName}</p>
-                    </div>
-                    <p className="font-bold text-brand text-sm">{fmt.currency(item.price)}</p>
-                  </button>
-                ))}
-              </div>
-            )}
-            {showSearch && searchQuery.length >= 2 && searchResults.length === 0 && !searchLoading && (
-              <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 p-4 text-center">
-                <p className="text-sm text-gray-400 mb-2">No items found in shops</p>
-                <Button size="sm" variant="outline" onClick={() => {
-                  setShowSearch(false)
-                  setRequestForm(p => ({ ...p, itemName: searchQuery }))
-                  setShowRequestModal(true)
-                }}>
-                  Request from a vendor →
-                </Button>
-              </div>
-            )}
-          </div>
 
           {/* Selected vendor item badge with availability status */}
           {selectedVendorItem && (
@@ -566,11 +547,16 @@ export default function NewOrderPage() {
                         <p className="text-[10px] text-gray-500">{req.vendor?.shopName}</p>
                       </div>
                       {!remaining.expired ? (
-                        <div className="flex items-center gap-1.5 bg-amber-100 dark:bg-amber-500/20 px-2.5 py-1 rounded-full">
-                          <Timer className="w-3 h-3 text-amber-600 animate-pulse" />
-                          <span className={cn('text-xs font-bold tabular-nums', remaining.minutes < 1 ? 'text-red-600' : 'text-amber-700 dark:text-amber-400')}>
-                            {remaining.text}
-                          </span>
+                        <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-1.5 bg-amber-100 dark:bg-amber-500/20 px-2.5 py-1 rounded-full">
+                            <Timer className="w-3 h-3 text-amber-600 animate-pulse" />
+                            <span className={cn('text-xs font-bold tabular-nums', remaining.minutes < 1 ? 'text-red-600' : 'text-amber-700 dark:text-amber-400')}>
+                              {remaining.text}
+                            </span>
+                          </div>
+                          <button onClick={() => handleCancelRequest(req.id)} className="text-[10px] font-bold text-red-500 hover:text-red-700 px-2 py-1 rounded-full hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors">
+                            Cancel
+                          </button>
                         </div>
                       ) : (
                         <span className="text-[10px] font-bold text-red-500 bg-red-50 dark:bg-red-500/10 px-2 py-0.5 rounded-full">Timed out</span>
@@ -596,46 +582,106 @@ export default function NewOrderPage() {
               })}
             </div>
           )}
-
-          <p className="text-[11px] text-gray-400">Search for items or manually enter details below</p>
         </div>
+        )}
 
         {/* Item Details */}
         <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-sm border border-gray-100 dark:border-gray-800 p-4 space-y-4">
-          <h2 className="font-bold text-navy dark:text-white text-sm flex items-center gap-2">
-            <Package className="w-4 h-4 text-brand" /> What do you need?
-          </h2>
-          <Input placeholder="e.g. Rice 2kg, Medicines, Notebook..." value={form.itemName} onChange={e => { setF('itemName', e.target.value); setSearchQuery(e.target.value) }}
-            disabled={!!selectedVendorItem} />
+          <div className="flex items-center justify-between">
+            <h2 className="font-bold text-navy dark:text-white text-sm flex items-center gap-2">
+              <Package className="w-4 h-4 text-brand" /> Items ({items.length})
+            </h2>
+            <button onClick={addItem} className="flex items-center gap-1 text-xs font-bold text-brand hover:text-brand/80 transition-colors">
+              <Plus className="w-3.5 h-3.5" /> Add item
+            </button>
+          </div>
+
+          {/* Item tabs */}
+          {items.length > 1 && (
+            <div className="flex gap-1.5 overflow-x-auto pb-1">
+              {items.map((it, idx) => (
+                <button key={it.id} onClick={() => { setActiveItemIdx(idx); setSearchQuery(it.name); setSelectedVendorItem(it.vendorItem) }}
+                  className={cn('flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-bold whitespace-nowrap border transition-all',
+                    activeItemIdx === idx ? 'border-brand bg-brand text-white' : 'border-gray-200 dark:border-gray-700 text-gray-500 hover:border-brand/50')}>
+                  {it.name || `Item ${idx + 1}`}
+                  {items.length > 1 && (
+                    <span onClick={e => { e.stopPropagation(); removeItem(idx) }} className="hover:text-red-300 ml-0.5"><X className="w-3 h-3" /></span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
+
+          <div className="relative">
+            <Input placeholder="e.g. Rice 2kg, Medicines, Notebook..." value={activeItem.name}
+              onChange={e => { handleSearchInput(e.target.value) }}
+              onFocus={() => activeItem.name.length >= 2 && setShowSearch(true)}
+              disabled={!!activeItem.vendorItem}
+              icon={searchLoading ? <Loader2 className="w-4 h-4 animate-spin text-brand" /> : <Search className="w-4 h-4" />} />
+            {/* Inline search results */}
+            {showSearch && !activeItem.vendorItem && (
+              <div className="absolute top-full left-0 right-0 z-30 mt-1 bg-white dark:bg-gray-900 rounded-xl shadow-xl border border-gray-200 dark:border-gray-700 max-h-60 overflow-y-auto">
+                {searchLoading ? (
+                  <div className="flex items-center justify-center gap-2 p-4">
+                    <Loader2 className="w-4 h-4 animate-spin text-brand" />
+                    <span className="text-xs text-gray-500">Searching shops...</span>
+                  </div>
+                ) : searchResults.length > 0 ? (
+                  searchResults.map(item => (
+                  <button key={item.id} onClick={() => selectVendorItem(item)}
+                    className="w-full flex items-center gap-3 p-3 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors text-left border-b border-gray-50 dark:border-gray-800 last:border-0">
+                    {item.photoUrl ? (
+                      <img src={item.photoUrl} alt="" className="w-10 h-10 rounded-lg object-cover" />
+                    ) : (
+                      <div className="w-10 h-10 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center text-lg">
+                        {item.vendor?.category ? CAT_EMOJI[item.vendor.category] || '📦' : '📦'}
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-navy dark:text-white text-sm truncate">{item.name}</p>
+                      <p className="text-[11px] text-gray-400 truncate">{item.vendor?.shopName}</p>
+                    </div>
+                    <p className="font-bold text-brand text-sm">{fmt.currency(item.price)}</p>
+                  </button>
+                ))
+                ) : (
+                  <div className="p-4 text-center">
+                    <p className="text-xs text-gray-400">No items found for &quot;{activeItem.name}&quot;</p>
+                    <p className="text-[10px] text-gray-400 mt-1">You can still type the item name manually</p>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
           <textarea className="w-full rounded-xl border border-gray-200 dark:border-gray-700 px-4 py-3 text-sm focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/10 resize-none transition-all bg-gray-50 dark:bg-gray-800 dark:text-white"
             rows={2} placeholder="Brand, size, color, or any specific details (optional)"
-            value={form.itemDescription} onChange={e => setF('itemDescription', e.target.value)} />
+            value={activeItem.description} onChange={e => updateItem(activeItemIdx, { description: e.target.value })} />
 
           <div className="grid grid-cols-2 gap-3">
-            <Input label="Expected Price (₹)" type="number" placeholder="200" value={form.expectedPrice}
-              onChange={e => setF('expectedPrice', e.target.value)}
+            <Input label="Expected Price (₹)" type="number" placeholder="200" value={activeItem.price}
+              onChange={e => updateItem(activeItemIdx, { price: e.target.value })}
               hint={`Limit: ₹${limit === Infinity ? '∞' : limit}`}
-              disabled={!!selectedVendorItem} />
+              disabled={!!activeItem.vendorItem} />
 
             {/* Weight Dropdown */}
             <div className="space-y-1">
-              <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Weight {selectedVendorItem ? <span className="text-brand">(locked)</span> : null}</label>
+              <label className="text-xs font-semibold text-gray-600 dark:text-gray-400">Weight {activeItem.vendorItem ? <span className="text-brand">(locked)</span> : null}</label>
               <div className="flex flex-wrap gap-1.5">
                 {WEIGHT_OPTIONS.map((opt, i) => (
-                  <button key={i} disabled={!!selectedVendorItem} onClick={() => {
+                  <button key={i} disabled={!!activeItem.vendorItem} onClick={() => {
                     setSelectedWeightOption(i)
                     if (opt.value === -1) { setCustomWeight(true) }
-                    else { setCustomWeight(false); setF('weightKg', String(opt.value)) }
+                    else { setCustomWeight(false); updateItem(activeItemIdx, { weightKg: String(opt.value) }) }
                   }}
                     className={cn('px-2.5 py-1.5 rounded-lg text-xs font-bold border transition-all',
                       selectedWeightOption === i ? 'border-brand bg-brand text-white' : 'border-gray-200 dark:border-gray-700 text-gray-600 dark:text-gray-300 hover:border-brand/50',
-                      selectedVendorItem && 'opacity-60 cursor-not-allowed')}>
+                      activeItem.vendorItem && 'opacity-60 cursor-not-allowed')}>
                     {opt.label}
                   </button>
                 ))}
               </div>
               {customWeight && (
-                <Input type="number" placeholder="Enter kg" value={form.weightKg} onChange={e => setF('weightKg', e.target.value)} hint="+₹5/kg" disabled={!!selectedVendorItem} />
+                <Input type="number" placeholder="Enter kg" value={activeItem.weightKg} onChange={e => updateItem(activeItemIdx, { weightKg: e.target.value })} hint="+₹5/kg" disabled={!!activeItem.vendorItem} />
               )}
               {!customWeight && <p className="text-[10px] text-gray-400 mt-0.5">+₹5/kg</p>}
             </div>
@@ -647,8 +693,7 @@ export default function NewOrderPage() {
           <h2 className="font-bold text-navy dark:text-white text-sm flex items-center gap-2">
             <Store className="w-4 h-4 text-brand" /> Shop Info
           </h2>
-          <Input placeholder="Shop name (optional)" value={form.shopName} onChange={e => setF('shopName', e.target.value)}
-            disabled={!!selectedVendorItem} />
+          <Input placeholder="Shop name (optional)" value={items.map(it => it.shopName).filter(Boolean).join(', ')} disabled />
 
           {/* Shop location with search */}
           <div className="space-y-2">
@@ -750,15 +795,10 @@ export default function NewOrderPage() {
             </div>
           </div>
         )}
-      </div>
-
-      {/* Sticky bottom button */}
-      <div className="fixed bottom-16 md:bottom-0 left-0 right-0 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-gray-100 dark:border-gray-800 p-4 z-20">
-        <div className="max-w-2xl mx-auto">
-          <Button className="w-full shadow-lg shadow-brand/20" size="lg" onClick={handleSubmit} loading={loading} disabled={!form.itemName || !form.expectedPrice}>
-            Place Order{price > 0 ? ` — ${fmt.currency(total)}` : ''}
-          </Button>
-        </div>
+        {/* Place Order Button */}
+        <Button className="w-full shadow-lg shadow-brand/20" size="lg" onClick={handleSubmit} loading={loading} disabled={!items.some(it => it.name.trim()) || totalItemPrice <= 0}>
+          Place Order{price > 0 ? ` — ${fmt.currency(total)}` : ''}
+        </Button>
       </div>
 
       {/* My Requests Modal */}
@@ -861,6 +901,7 @@ export default function NewOrderPage() {
               onChange={e => setRequestForm(p => ({ ...p, timerMinutes: e.target.value }))}
               className="w-full rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-900 px-3 py-2.5 text-sm text-navy dark:text-white focus:ring-2 focus:ring-brand focus:border-brand outline-none"
             >
+              <option value="2">2 minutes</option>
               <option value="5">5 minutes</option>
               <option value="15">15 minutes</option>
               <option value="30">30 minutes</option>

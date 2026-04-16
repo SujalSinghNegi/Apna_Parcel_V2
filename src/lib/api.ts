@@ -159,6 +159,7 @@ export const vendorsApi = {
   vendorRequests: () => api.get('/vendors/requests/vendor'),
   respondRequest: (id: string, data: Record<string, unknown>) => api.post(`/vendors/requests/${id}/respond`, data),
   broadcastRequest: (id: string) => api.post(`/vendors/requests/${id}/broadcast`),
+  cancelRequest: (id: string) => api.post(`/vendors/requests/${id}/cancel`),
   // Vendor orders & analytics
   myOrders: (page = 1) => api.get(`/vendors/me/orders?page=${page}`),
   analytics: () => api.get('/vendors/me/analytics'),
