@@ -1,9 +1,9 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
-import { ordersApi, getErrorMessage } from '@/lib/api'
+import { useEffect, useState, useMemo } from 'react'
 import { useAuthStore } from '@/store/auth'
-import { initSocket, EVENTS } from '@/lib/socket'
-import { usePolling } from '@/hooks/usePolling'
+import { db } from '@/lib/firebase'
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { TrustBadge } from '@/components/ui/Badge'
@@ -11,8 +11,8 @@ import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
 import { fmt, cn } from '@/lib/utils'
-import { Order, TRUST_LEVEL_LIMITS } from '@/types'
-import { Bike, Package, Filter, Star, MapPin, Weight, Store, AlertCircle, Loader2, RefreshCw, Zap, Clock, IndianRupee } from 'lucide-react'
+import { Order } from '@/types'
+import { Bike, Package, Filter, MapPin, Weight, AlertCircle, Loader2, RefreshCw, Zap, Clock, IndianRupee } from 'lucide-react'
 import toast from 'react-hot-toast'
 import Link from 'next/link'
 
@@ -24,59 +24,89 @@ const SHOP_MODE_LABELS: Record<string, { label: string; emoji: string; color: st
 }
 
 export default function RiderPage() {
-  const { user, accessToken } = useAuthStore() as any
-  const [orders, setOrders] = useState<Order[]>([])
+  const router = useRouter()
+  const { user } = useAuthStore() as any
+  
+  // We store all raw pending orders from Firebase here
+  const [allPendingOrders, setAllPendingOrders] = useState<Order[]>([])
   const [loading, setLoading] = useState(true)
   const [accepting, setAccepting] = useState('')
   const [showAccept, setShowAccept] = useState<Order | null>(null)
   const [etaMinutes, setEtaMinutes] = useState('60')
   const [filters, setFilters] = useState({ maxWeightKg: '', maxPrice: '', shopMode: '' })
 
-  const fetchAvailable = useCallback(async () => {
-    setLoading(true)
-    try {
-      const params: Record<string, any> = {}
-      if (filters.maxWeightKg) params.maxWeightKg = parseFloat(filters.maxWeightKg)
-      if (filters.maxPrice) params.maxPrice = parseFloat(filters.maxPrice)
-      if (filters.shopMode) params.shopMode = filters.shopMode
-      const { data } = await ordersApi.available(params)
-      setOrders(data.data || [])
-    } catch (e) { toast.error(getErrorMessage(e)) }
-    finally { setLoading(false) }
-  }, [filters])
-
-  useEffect(() => { fetchAvailable() }, [fetchAvailable])
-
-  // Poll for new available orders every 15s (riders need faster updates)
-  usePolling(fetchAvailable, 15_000, !loading)
-
-  // Real-time: refresh available orders when new orders or cancellations happen
+  // ──🔥 REAL-TIME AVAILABLE ORDERS SYNC ────────────────────────────────────
   useEffect(() => {
-    if (!accessToken) return
-    const sock = initSocket(accessToken)
+    if (!user?.uid) return;
 
-    const refresh = () => fetchAvailable()
-    sock.on(EVENTS.NOTIFICATION, refresh)
-    sock.on(EVENTS.ORDER_CANCELLED, refresh)
+    const ordersRef = collection(db, "orders");
+    // We only query the status from Firebase to prevent complex Index Requirements.
+    const q = query(ordersRef, where("status", "==", "PENDING"));
 
-    return () => {
-      sock.off(EVENTS.NOTIFICATION, refresh)
-      sock.off(EVENTS.ORDER_CANCELLED, refresh)
-    }
-  }, [accessToken, fetchAvailable])
+    const unsub = onSnapshot(q, (snapshot) => {
+      let fetchedOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      
+      // Sort newest first
+      fetchedOrders.sort((a, b) => {
+        const timeA = a.createdAt?.toMillis ? a.createdAt.toMillis() : 0;
+        const timeB = b.createdAt?.toMillis ? b.createdAt.toMillis() : 0;
+        return timeB - timeA;
+      });
 
+      setAllPendingOrders(fetchedOrders);
+      setLoading(false);
+    });
+
+    return () => unsub();
+  }, [user?.uid]);
+
+  // Client-side filtering (Super fast, no Firebase indexes needed!)
+  const displayOrders = useMemo(() => {
+    return allPendingOrders.filter(o => {
+      // Don't show the rider their own orders
+      if (o.clientId === user?.uid) return false;
+      
+      if (filters.shopMode && o.shopMode !== filters.shopMode) return false;
+      if (filters.maxPrice && (o.expectedPrice > parseFloat(filters.maxPrice))) return false;
+      if (filters.maxWeightKg && (o.weightKg > parseFloat(filters.maxWeightKg))) return false;
+      
+      return true;
+    });
+  }, [allPendingOrders, filters, user?.uid]);
+
+  // ──🔥 FIREBASE ACCEPT ORDER ──────────────────────────────────────────────
   const handleAccept = async () => {
     if (!showAccept) return
     const eta = parseInt(etaMinutes)
     if (!eta || eta < 10) { toast.error('Enter valid ETA (min 10 mins)'); return }
+    
     setAccepting(showAccept.id)
     try {
-      await ordersApi.accept(showAccept.id, eta)
-      toast.success('Order accepted! Wait for client payment.')
-      setShowAccept(null)
-      setOrders(p => p.filter(o => o.id !== showAccept.id))
-    } catch (e) { toast.error(getErrorMessage(e)) }
-    finally { setAccepting('') }
+      const orderRef = doc(db, "orders", showAccept.id);
+      
+      await updateDoc(orderRef, {
+        status: 'ACCEPTED',
+        riderId: user.uid,
+        rider: {
+          id: user.uid,
+          name: user.name,
+          profilePhoto: user.profilePhoto || '',
+          trustLevel: user.trustLevel || 1,
+          rating: user.rating || 0
+        },
+        declaredEtaMinutes: eta,
+        updatedAt: serverTimestamp()
+      });
+
+      toast.success('Order accepted! Redirecting...');
+      setShowAccept(null);
+      // Auto-redirect the rider to the active order screen
+      router.push(`/orders/${showAccept.id}`);
+      
+    } catch (e: any) { 
+      toast.error(e.message || "Failed to accept order"); 
+      setAccepting('');
+    }
   }
 
   if (!user) return null
@@ -84,7 +114,7 @@ export default function RiderPage() {
   const isRiderSuspended = user.riderModeSuspendedUntil && new Date(user.riderModeSuspendedUntil) > new Date()
 
   return (
-    <div className="page-container space-y-5 animate-fade-in">
+    <div className="page-container space-y-5 animate-fade-in pb-20">
       {/* Header */}
       <div className="relative bg-gradient-to-br from-navy via-navy-800 to-navy-900 rounded-3xl p-6 text-white overflow-hidden">
         <div className="absolute -right-12 -top-12 w-48 h-48 bg-brand/10 rounded-full blur-2xl" />
@@ -106,7 +136,7 @@ export default function RiderPage() {
               <TrustBadge level={user.trustLevel} />
             </div>
             <div className="text-right">
-              <p className="text-xl font-extrabold">{user.completedOrders}</p>
+              <p className="text-xl font-extrabold">{user.deliveriesCompleted || 0}</p>
               <p className="text-[11px] text-white/50 font-medium">Deliveries</p>
             </div>
           </div>
@@ -153,7 +183,7 @@ export default function RiderPage() {
                   value={filters.maxPrice} onChange={e => setFilters(p => ({ ...p, maxPrice: e.target.value }))} />
                 <Input className="min-w-[100px]" placeholder="Max kg" type="number"
                   value={filters.maxWeightKg} onChange={e => setFilters(p => ({ ...p, maxWeightKg: e.target.value }))} />
-                <select className="rounded-xl border-2 border-gray-200 px-3 py-2.5 text-sm font-medium focus:border-brand focus:outline-none transition-colors"
+                <select className="rounded-xl border border-gray-200 px-3 py-2.5 text-sm font-medium focus:border-brand focus:outline-none transition-colors dark:bg-gray-800 dark:border-gray-700 dark:text-white"
                   value={filters.shopMode} onChange={e => setFilters(p => ({ ...p, shopMode: e.target.value }))}>
                   <option value="">All modes</option>
                   <option value="SINGLE_SHOP">Single Shop</option>
@@ -161,9 +191,12 @@ export default function RiderPage() {
                   <option value="ENTIRE_AREA">Entire Area</option>
                   <option value="URGENT">Urgent</option>
                 </select>
-                <Button onClick={fetchAvailable} size="sm" variant="secondary" className="shrink-0">
-                  <Filter className="w-3.5 h-3.5" /> Apply
-                </Button>
+                {/* Visual reset button for filters */}
+                {(filters.maxPrice || filters.maxWeightKg || filters.shopMode) && (
+                  <Button onClick={() => setFilters({ maxWeightKg: '', maxPrice: '', shopMode: '' })} size="sm" variant="secondary" className="shrink-0">
+                    Clear
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
@@ -171,41 +204,44 @@ export default function RiderPage() {
           {/* Orders list */}
           <div>
             <div className="flex items-center justify-between mb-3">
-              <h2 className="font-extrabold text-navy text-lg flex items-center gap-2">
+              <h2 className="font-extrabold text-navy dark:text-white text-lg flex items-center gap-2">
                 <Zap className="w-5 h-5 text-amber-500" />
                 Available Orders
               </h2>
-              <button onClick={fetchAvailable}
-                className="flex items-center gap-1.5 text-sm text-brand font-bold hover:text-brand-600 transition-colors">
-                <RefreshCw className={cn("w-3.5 h-3.5", loading && "animate-spin")} /> Refresh
-              </button>
+              <div className="flex items-center gap-1.5 text-sm text-brand font-bold">
+                 <span className="relative flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-brand opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-brand"></span>
+                </span>
+                Live
+              </div>
             </div>
 
             {loading ? (
               <div className="flex flex-col items-center justify-center py-16 gap-3">
                 <Loader2 className="w-8 h-8 animate-spin text-brand" />
-                <p className="text-sm text-gray-400 font-medium">Finding orders near you...</p>
+                <p className="text-sm text-gray-400 font-medium">Connecting to network...</p>
               </div>
-            ) : orders.length === 0 ? (
-              <Card className="border-dashed border-2 border-gray-200">
+            ) : displayOrders.length === 0 ? (
+              <Card className="border-dashed border-2 border-gray-200 dark:border-gray-800">
                 <CardContent className="py-16 text-center">
-                  <div className="w-16 h-16 bg-gray-50 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <Package className="w-8 h-8 text-gray-300" />
+                  <div className="w-16 h-16 bg-gray-50 dark:bg-gray-800 rounded-2xl flex items-center justify-center mx-auto mb-4">
+                    <Package className="w-8 h-8 text-gray-300 dark:text-gray-600" />
                   </div>
-                  <p className="font-bold text-gray-400 text-lg">No orders available</p>
-                  <p className="text-sm text-gray-400 mt-1">Check back in a few minutes</p>
+                  <p className="font-bold text-gray-400 text-lg">No orders nearby</p>
+                  <p className="text-sm text-gray-400 mt-1">We will notify you when an order pops up.</p>
                 </CardContent>
               </Card>
             ) : (
               <div className="space-y-3">
-                {orders.map(order => {
+                {displayOrders.map(order => {
                   const modeInfo = SHOP_MODE_LABELS[order.shopMode] || { label: order.shopMode, emoji: '📦', color: 'bg-gray-50 text-gray-700' }
                   return (
                     <Card key={order.id} className="card-hover overflow-hidden">
                       <CardContent className="py-5">
                         <div className="flex items-start justify-between gap-2 mb-4">
                           <div>
-                            <h3 className="font-extrabold text-navy text-base">{order.itemName}</h3>
+                            <h3 className="font-extrabold text-navy dark:text-white text-base">{order.itemName}</h3>
                             {order.itemDescription && <p className="text-xs text-gray-500 mt-0.5 line-clamp-1">{order.itemDescription}</p>}
                           </div>
                           <span className={cn('shrink-0 px-2.5 py-1 text-xs font-bold rounded-lg', modeInfo.color)}>
@@ -214,29 +250,28 @@ export default function RiderPage() {
                         </div>
 
                         <div className="grid grid-cols-3 gap-2 mb-4">
-                          <div className="bg-gray-50 rounded-xl p-3 text-center">
+                          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 text-center">
                             <IndianRupee className="w-3.5 h-3.5 text-gray-400 mx-auto mb-1" />
-                            <p className="text-sm font-extrabold text-navy">{fmt.currency(order.expectedPrice)}</p>
+                            <p className="text-sm font-extrabold text-navy dark:text-white">{fmt.currency(order.expectedPrice)}</p>
                             <p className="text-[10px] text-gray-400 font-medium">Item Cost</p>
                           </div>
-                          <div className="bg-gradient-to-br from-brand-50 to-orange-50 rounded-xl p-3 text-center">
+                          <div className="bg-gradient-to-br from-brand-50 to-orange-50 dark:from-brand/20 dark:to-orange-500/10 rounded-xl p-3 text-center">
                             <Zap className="w-3.5 h-3.5 text-brand mx-auto mb-1" />
                             <p className="text-sm font-extrabold text-brand">{fmt.currency(order.deliveryFee + order.tip)}</p>
-                            <p className="text-[10px] text-brand-600/70 font-medium">You Earn</p>
+                            <p className="text-[10px] text-brand-600/70 dark:text-brand-400 font-medium">You Earn</p>
                           </div>
-                          <div className="bg-gray-50 rounded-xl p-3 text-center">
+                          <div className="bg-gray-50 dark:bg-gray-800 rounded-xl p-3 text-center">
                             <Weight className="w-3.5 h-3.5 text-gray-400 mx-auto mb-1" />
-                            <p className="text-sm font-extrabold text-navy">{order.weightKg}kg</p>
+                            <p className="text-sm font-extrabold text-navy dark:text-white">{order.weightKg}kg</p>
                             <p className="text-[10px] text-gray-400 font-medium">Weight</p>
                           </div>
                         </div>
 
-                        <div className="flex items-center justify-between bg-gray-50 rounded-xl p-3">
+                        <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
                           <div className="flex items-center gap-2.5">
-                            <Avatar src={order.client?.profilePhoto} name={order.client?.name || 'User'} size="sm" />
+                            <Avatar src={order.clientPhone} name={order.clientName || 'User'} size="sm" />
                             <div>
-                              <p className="text-xs font-bold text-navy">{order.client?.name}</p>
-                              <TrustBadge level={order.client?.trustLevel || 'LEVEL_1'} />
+                              <p className="text-xs font-bold text-navy dark:text-white">{order.clientName}</p>
                             </div>
                           </div>
                           <Button size="sm" onClick={() => setShowAccept(order)}
@@ -254,9 +289,9 @@ export default function RiderPage() {
 
           {/* My active rider orders */}
           <div>
-            <div className="flex items-center justify-between mb-3">
-              <h2 className="font-extrabold text-navy text-lg">My Active Deliveries</h2>
-              <Link href="/orders?role=rider" className="text-sm text-brand font-bold">View all</Link>
+            <div className="flex items-center justify-between mt-6 mb-3">
+              <h2 className="font-extrabold text-navy dark:text-white text-lg">My Active Deliveries</h2>
+              <Link href="/orders?role=rider" className="text-sm text-brand font-bold hover:underline">View all</Link>
             </div>
           </div>
         </>
@@ -266,16 +301,16 @@ export default function RiderPage() {
       <Modal open={!!showAccept} onClose={() => setShowAccept(null)} title="Accept Order">
         {showAccept && (
           <div className="space-y-5">
-            <div className="bg-gradient-to-br from-gray-50 to-stone-50 rounded-2xl p-5">
-              <h3 className="font-extrabold text-navy text-lg">{showAccept.itemName}</h3>
-              <p className="text-sm text-gray-600 mt-1">Client: <span className="font-semibold text-navy">{showAccept.client?.name}</span></p>
+            <div className="bg-gradient-to-br from-gray-50 to-stone-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl p-5">
+              <h3 className="font-extrabold text-navy dark:text-white text-lg">{showAccept.itemName}</h3>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Client: <span className="font-semibold text-navy dark:text-white">{showAccept.clientName}</span></p>
               <div className="grid grid-cols-2 gap-3 mt-4">
-                <div className="bg-white rounded-xl p-3 text-center border border-gray-100">
+                <div className="bg-white dark:bg-gray-800 rounded-xl p-3 text-center border border-gray-100 dark:border-gray-700">
                   <p className="text-[11px] text-gray-400 font-medium">You spend</p>
-                  <p className="text-lg font-extrabold text-navy">{fmt.currency(showAccept.expectedPrice)}</p>
+                  <p className="text-lg font-extrabold text-navy dark:text-white">{fmt.currency(showAccept.expectedPrice)}</p>
                 </div>
-                <div className="bg-gradient-to-br from-brand-50 to-orange-50 rounded-xl p-3 text-center border border-brand-100">
-                  <p className="text-[11px] text-brand-600/70 font-medium">You earn</p>
+                <div className="bg-gradient-to-br from-brand-50 to-orange-50 dark:from-brand/20 dark:to-orange-500/10 rounded-xl p-3 text-center border border-brand-100 dark:border-brand/30">
+                  <p className="text-[11px] text-brand-600/70 dark:text-brand-400 font-medium">You earn</p>
                   <p className="text-lg font-extrabold text-brand">{fmt.currency(showAccept.deliveryFee + showAccept.tip)}</p>
                 </div>
               </div>

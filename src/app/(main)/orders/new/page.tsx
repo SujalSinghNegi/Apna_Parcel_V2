@@ -1,8 +1,10 @@
 'use client'
 import { useState, useCallback, useEffect, useRef } from 'react'
 import dynamic from 'next/dynamic'
-import { ordersApi, vendorsApi, getErrorMessage } from '@/lib/api'
+import { vendorsApi, getErrorMessage } from '@/lib/api'
 import { useAuthStore } from '@/store/auth'
+import { db } from '@/lib/firebase'
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
 import { Modal } from '@/components/ui/Modal'
@@ -39,8 +41,9 @@ const CAT_EMOJI: Record<string, string> = {
 
 export default function NewOrderPage() {
   const router = useRouter()
-  const { user } = useAuthStore()
+  const { user } = useAuthStore() as any
   const [loading, setLoading] = useState(false)
+  
   // ── Multi-item state ──────────────────────────────────────────────────
   type OrderItem = { id: number; name: string; description: string; price: string; weightKg: string; vendorId: string; shopName: string; vendorItem: VendorItem | null }
   const [items, setItems] = useState<OrderItem[]>([{ id: 1, name: '', description: '', price: '', weightKg: '0.5', vendorId: '', shopName: '', vendorItem: null }])
@@ -156,7 +159,7 @@ export default function NewOrderPage() {
     )
   }
 
-  // ── Item search across vendors ──────────────────────────────────────────
+  // ── Item search across vendors (Stubbed for now) ──────────────────────
   const searchItems = useCallback(async (q: string) => {
     if (q.length < 2) { setSearchResults([]); return }
     setSearchLoading(true)
@@ -190,11 +193,9 @@ export default function NewOrderPage() {
       vendorItem: item,
     })
     if (item.vendor?.locationName) setF('shopLocation', item.vendor.locationName)
-    // Set weight option to match
     const matchIdx = WEIGHT_OPTIONS.findIndex(o => o.value === item.weightKg)
     if (matchIdx >= 0) { setSelectedWeightOption(matchIdx); setCustomWeight(false) }
     else { setSelectedWeightOption(WEIGHT_OPTIONS.length - 1); setCustomWeight(true) }
-    // Set shop coords if vendor has them
     if (item.vendor?.locationLat && item.vendor?.locationLng) {
       setShopCoords({ lat: item.vendor.locationLat, lng: item.vendor.locationLng })
     }
@@ -242,7 +243,6 @@ export default function NewOrderPage() {
     try {
       const { data } = await vendorsApi.myRequests()
       const all: ItemRequest[] = data.data || []
-      // Only show recent requests (last 24h) and exclude cancelled
       const cutoff = Date.now() - 24 * 60 * 60 * 1000
       setMyRequests(all.filter(r => r.status !== 'CANCELLED' && new Date(r.createdAt).getTime() > cutoff))
     } catch { /* ignore */ }
@@ -268,7 +268,6 @@ export default function NewOrderPage() {
       })
       toast.success('Request sent to vendor! You\'ll be notified when they respond.')
       setShowRequestModal(false)
-      // Track this request for auto-fill when vendor responds
       const reqs = await vendorsApi.myRequests()
       const all: ItemRequest[] = reqs.data.data || []
       const cutoff = Date.now() - 24 * 60 * 60 * 1000
@@ -283,7 +282,6 @@ export default function NewOrderPage() {
     finally { setRequestLoading(false) }
   }
 
-  // Poll requests (faster when checking availability)
   useEffect(() => {
     fetchMyRequests()
     fetchAllVendors()
@@ -291,7 +289,6 @@ export default function NewOrderPage() {
     return () => clearInterval(interval)
   }, [availabilityStatus])
 
-  // Countdown tick for pending request timers (every second)
   useEffect(() => {
     const hasPending = myRequests.some(r => r.status === 'PENDING')
     if (!hasPending) return
@@ -299,14 +296,12 @@ export default function NewOrderPage() {
     return () => clearInterval(interval)
   }, [myRequests])
 
-  // Track the active availability request status
   useEffect(() => {
     if (!activeRequestId || availabilityStatus !== 'checking') return
     const req = myRequests.find(r => r.id === activeRequestId)
     if (!req) return
     if (req.status === 'ACCEPTED') {
       setAvailabilityStatus('confirmed')
-      // Auto-fill item details from vendor response
       const vendorPrice = req.vendorPrice || req.maxPrice || 0
       updateItem(activeItemIdx, {
         name: req.itemName,
@@ -375,33 +370,77 @@ export default function NewOrderPage() {
   if (form.shopMode === 'URGENT') deliveryFee = deliveryFee * 2
   const platformFee = Math.min(price * 0.08, 50)
   const total = price + deliveryFee + platformFee + tip
-  const limit = user ? TRUST_LEVEL_LIMITS[user.trustLevel] : 500
+  
+  // Safe limits check
+  const levelKey = user ? `LEVEL_${user.trustLevel}` as keyof typeof TRUST_LEVEL_LIMITS : 'LEVEL_1';
+  const limit = TRUST_LEVEL_LIMITS ? TRUST_LEVEL_LIMITS[levelKey as keyof typeof TRUST_LEVEL_LIMITS] : 500;
 
+  // ──🔥 FIREBASE DIRECT SUBMIT ──────────────────────────────────────────────
   const handleSubmit = async () => {
+    const actualUserId = user?.uid || user?.id;
+    if (!actualUserId) {
+    toast.error("Session error. Please log out and log back in.");
+    return;
+  }
     const validItems = items.filter(it => it.name.trim())
     if (validItems.length === 0) { toast.error('Add at least one item'); return }
     if (price <= 0) { toast.error('Enter expected price for items'); return }
     if (price > limit) { toast.error(`Your trust level allows max ₹${limit === Infinity ? '∞' : limit}`); return }
     if (!clientCoords) { toast.error('Please select your current location'); return }
+    
     setLoading(true)
     try {
-      const validItems = items.filter(it => it.name.trim())
-      const itemName = validItems.map(it => it.name).join(', ')
-      const itemDescription = validItems.map(it => it.description).filter(Boolean).join('; ') || undefined
-      const shopName = validItems.map(it => it.shopName).filter(Boolean).join(', ') || undefined
-      const vendorId = validItems[0]?.vendorId || undefined
-      const { data } = await ordersApi.create({
-        itemName, itemDescription,
-        shopName, shopLocation: form.shopLocation || undefined,
-        shopMode: form.shopMode, expectedPrice: price, weightKg: weight,
-        distanceKm: dist, tip, declaredEtaMinutes: form.declaredEtaMinutes ? parseInt(form.declaredEtaMinutes) : undefined,
-        vendorId: vendorId || undefined, itemRequestId: form.itemRequestId || undefined,
+      const itemNameStr = validItems.map(it => it.name).join(', ')
+      const itemDescStr = validItems.map(it => it.description).filter(Boolean).join('; ') || ''
+      const shopNameStr = validItems.map(it => it.shopName).filter(Boolean).join(', ') || ''
+      const vendorId = validItems[0]?.vendorId || null
+
+      // Build the Firestore Document
+      const orderPayload = {
+        clientId: user.uid,
+        clientName: user.name,
+        clientPhone: user.phone || '',
+        clientAddress: clientAddress || '',
+        clientLat: clientCoords.lat,
+        clientLng: clientCoords.lng,
+        shopLocation: form.shopLocation || '',
+        shopLat: shopCoords?.lat || null,
+        shopLng: shopCoords?.lng || null,
+        shopName: shopNameStr,
+        itemName: itemNameStr,
+        itemDescription: itemDescStr,
+        items: validItems, // Saving the full array for rich detailed views later!
+        shopMode: form.shopMode,
+        expectedPrice: price,
+        deliveryFee,
+        platformFee,
+        tip,
+        totalAmount: total,
+        weightKg: weight,
+        distanceKm: dist,
+        vendorId,
+        status: 'PENDING',
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      }
+
+      // 1. Push to Firestore directly
+      const docRef = await addDoc(collection(db, 'orders'), orderPayload)
+
+      // 2. Trigger the cool searching overlay!
+      setSearchingOverlay({ 
+        show: true, 
+        orderId: docRef.id, 
+        shopMode: form.shopMode, 
+        shopName: shopNameStr, 
+        step: 0 
       })
-      // Show searching overlay before redirect
-      const shopName2 = validItems.map(it => it.shopName).filter(Boolean).join(', ')
-      setSearchingOverlay({ show: true, orderId: data.data.id, shopMode: form.shopMode, shopName: shopName2, step: 0 })
+      
       setLoading(false)
-    } catch (e) { toast.error(getErrorMessage(e)); setLoading(false) }
+    } catch (e: any) { 
+      toast.error(e.message || "Failed to create order"); 
+      setLoading(false) 
+    }
   }
 
   // Animate searching steps
@@ -421,7 +460,6 @@ export default function NewOrderPage() {
     return () => clearInterval(timer)
   }, [searchingOverlay.show])
 
-  // Accepted requests that can be used
   const acceptedRequests = myRequests.filter(r => r.status === 'ACCEPTED')
   const pendingRequests = myRequests.filter(r => r.status === 'PENDING')
 
@@ -540,7 +578,7 @@ export default function NewOrderPage() {
             </div>
           )}
 
-          {/* Accepted requests that can auto-fill (only show when user has active interactions) */}
+          {/* Accepted requests that can auto-fill */}
           {activeRequestId && acceptedRequests.length > 0 && (
             <div className="space-y-1">
               <p className="text-xs font-bold text-green-600 flex items-center gap-1"><Check className="w-3 h-3" /> Accepted by vendor</p>

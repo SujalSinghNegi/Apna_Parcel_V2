@@ -34,7 +34,7 @@ const itemVariants: Variants = {
 
 export default function AuthPage() {
   const router = useRouter();
-  const { setAuth } = useAuthStore();
+  const { setAuth } = useAuthStore() as any;
   const [step, setStep] = useState<Step>("credentials");
   const [isLogin, setIsLogin] = useState(true);
   
@@ -60,16 +60,26 @@ export default function AuthPage() {
 
     setLoading(true);
     try {
-      // Firebase Login
+      // 1. Firebase Login
       const userCred = await signInWithEmailAndPassword(auth, email, password);
+      const token = await userCred.user.getIdToken(); // Grab the real token!
       
-      // Fetch user profile from Firestore
+      // 2. Fetch user profile from Firestore
       const userDoc = await getDoc(doc(db, "users", userCred.user.uid));
       
       if (userDoc.exists()) {
         const userData = userDoc.data();
-        setAuth(userData, null, null);
-        toast.success("Welcome back, " + userData.name + "!");
+        
+        // 🔥 CRITICAL FIX: Ensure BOTH id and uid are present for backwards compatibility
+        const safeUserPayload = {
+          uid: userCred.user.uid,
+          id: userCred.user.uid,
+          ...userData
+        };
+
+        // Pass the token so the app knows it's a valid session
+        setAuth(safeUserPayload, token, null);
+        toast.success("Welcome back, " + (userData.name || "User") + "!");
         router.push(userData.isAdmin ? "/admin" : userData.role === "VENDOR" ? "/vendors/dashboard" : "/dashboard");
       } else {
         toast.error("Profile incomplete. Please register.");
@@ -96,11 +106,20 @@ export default function AuthPage() {
       // 1. Create Authentication Account
       const userCred = await createUserWithEmailAndPassword(auth, email, password);
       const uid = userCred.user.uid;
+      const token = await userCred.user.getIdToken();
 
-      // 2. Prepare Profile Data for Database
+      // 2. Prepare Profile Data for Database (Added 'id' field to fix legacy crashes)
       const payload: any = { 
-        uid, email, name, phone, userType, 
-        role: "CLIENT", trustLevel: 1,
+        uid, 
+        id: uid, 
+        email, 
+        name, 
+        phone, 
+        userType, 
+        role: "CLIENT", 
+        trustLevel: 1,
+        deliveriesCompleted: 0,
+        rating: 0,
         createdAt: serverTimestamp()
       };
       
@@ -113,7 +132,8 @@ export default function AuthPage() {
       // 3. Save to Firestore Database
       await setDoc(doc(db, "users", uid), payload);
       
-      setAuth(payload, null, null);
+      // 4. Update local memory
+      setAuth(payload, token, null);
       toast.success("Welcome to ApnaParcel, " + name + "!");
       router.push("/dashboard");
     } catch (error: any) {
