@@ -1,4 +1,6 @@
 'use client'
+import { auth } from '@/lib/firebase'
+import { signOut } from 'firebase/auth'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
@@ -49,12 +51,29 @@ export const Sidebar = () => {
   // Close mobile sidebar on route change & dismiss rider transition
   useEffect(() => { setMobileOpen(false); setRiderTransition(false) }, [pathname])
 
-  const handleLogout = async () => {
-    try { if (refreshToken) await authApi.logout(refreshToken) } catch {}
+ const handleLogout = async () => {
+  try {
+    // 1. Tell Firebase to kill the session
+    await signOut(auth)
+    
+    // 2. Clear the Zustand store memory
     clearAuth()
-    toast.success('Logged out')
-    window.location.href = '/auth'
+    
+    // 3. FORCE delete the physical file in the browser so it can't survive a reload
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('apnaparcel-auth')
+    }
+    
+    toast.success('Logged out successfully')
+    
+    // 4. Use Next.js router instead of hard reload
+    router.push('/')
+  } catch (error) {
+    console.error("Logout failed", error)
+    toast.error('Failed to log out')
   }
+}
+
 
   const handleRiderClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault()

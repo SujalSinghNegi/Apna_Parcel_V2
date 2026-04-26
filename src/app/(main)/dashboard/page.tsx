@@ -101,26 +101,33 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true)
   const [unreadCount, setUnreadCount] = useState(0) // Firebase notifications can be added later
 
-  useEffect(() => {
+
+useEffect(() => {
     async function fetchDashboardData() {
-      if (!user?.uid) return;
+      // Safely check for either Firebase 'uid' or old backend 'id'
+      const userId = user?.uid || user?.id;
+      
+      if (!userId) {
+        setLoading(false); // Prevent infinite skeleton if ID is missing
+        return;
+      }
       
       try {
         // 1. Fetch User's Recent Orders from Firestore
         const ordersRef = collection(db, "orders");
         const q = query(
           ordersRef, 
-          where("clientId", "==", user.uid),
+          where("clientId", "==", userId),
           orderBy("createdAt", "desc"),
-          limit(3) // Only get latest 3 for dashboard
+          limit(3)
         );
         
         const querySnapshot = await getDocs(q);
         const ordersData = querySnapshot.docs.map(doc => ({
           id: doc.id,
           ...doc.data(),
-          // Convert Firestore Timestamp to Date string
-          createdAt: doc.data().createdAt?.toDate().toISOString() || new Date().toISOString()
+          // Safely handle Firestore timestamps
+          createdAt: doc.data().createdAt?.toDate ? doc.data().createdAt.toDate().toISOString() : new Date().toISOString()
         }));
         
         setRecentOrders(ordersData);
@@ -137,8 +144,9 @@ export default function Dashboard() {
           }
         });
         
-      } catch (error) {
-        console.error("Error fetching dashboard data:", error);
+      } catch (error: any) {
+        console.error("Dashboard Fetch Error:", error);
+        // If Firebase complains about needing an index, it will show a link in the F12 console!
       } finally {
         setLoading(false);
       }
