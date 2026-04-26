@@ -1,22 +1,20 @@
 'use client'
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/store/auth'
-import { usersApi, ordersApi, getErrorMessage } from '@/lib/api'
-import { initSocket, EVENTS } from '@/lib/socket'
+import { db } from '@/lib/firebase'
+import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore'
 import { Card, CardContent } from '@/components/ui/Card'
 import { TrustBadge, StatusBadge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Button } from '@/components/ui/Button'
 import { fmt, cn } from '@/lib/utils'
-import { Order, TRUST_LEVEL_NAMES, TRUST_LEVEL_LIMITS } from '@/types'
+import { TRUST_LEVEL_NAMES, TRUST_LEVEL_LIMITS } from '@/types'
 import {
   Package, ShoppingBag, Bike, Star, TrendingUp, ArrowRight, ChevronRight,
   Sparkles, Wallet, Trophy, Clock, Bell, RefreshCw, Zap, Loader2
 } from 'lucide-react'
 import Link from 'next/link'
 import toast from 'react-hot-toast'
-
-const POLL_INTERVAL = 30_000
 
 /* ─── Skeleton Components ──────────────────────────────────────────────── */
 function SkeletonPulse({ className }: { className?: string }) {
@@ -94,75 +92,66 @@ function DashboardSkeleton() {
 }
 
 export default function Dashboard() {
-  const { user, setUser, accessToken } = useAuthStore() as any
-  const [stats, setStats] = useState<any>(null)
-  const [recentOrders, setRecentOrders] = useState<Order[]>([])
+  const { user } = useAuthStore() as any
+  const [stats, setStats] = useState<any>({
+    asClient: { totalSpent: 0, ordersPlaced: 0 },
+    asRider: { totalEarned: 0, deliveriesCompleted: 0 }
+  })
+  const [recentOrders, setRecentOrders] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
-  const [refreshing, setRefreshing] = useState(false)
-  const [unreadCount, setUnreadCount] = useState(0)
+  const [unreadCount, setUnreadCount] = useState(0) // Firebase notifications can be added later
 
-  const fetchData = useCallback(async (silent = false) => {
-    if (!silent) setLoading(true)
-    else setRefreshing(true)
-    try {
-      const [meRes, statsRes, ordersRes, notifRes] = await Promise.all([
-        usersApi.me().catch(() => null),
-        usersApi.stats().catch(() => null),
-        ordersApi.list('client', undefined, 1).catch(() => null),
-        usersApi.notifications(1).catch(() => null),
-      ])
-      // Sync fresh user data into the store so hero is never stale
-      if (meRes?.data?.data) setUser(meRes.data.data)
-      if (statsRes) setStats(statsRes.data.data)
-      if (ordersRes) setRecentOrders(ordersRes.data.data?.slice(0, 3) || [])
-      if (notifRes) {
-        const notifications = notifRes.data.data || []
-        setUnreadCount(notifications.filter((n: any) => !n.isRead).length)
+  useEffect(() => {
+    async function fetchDashboardData() {
+      if (!user?.uid) return;
+      
+      try {
+        // 1. Fetch User's Recent Orders from Firestore
+        const ordersRef = collection(db, "orders");
+        const q = query(
+          ordersRef, 
+          where("clientId", "==", user.uid),
+          orderBy("createdAt", "desc"),
+          limit(3) // Only get latest 3 for dashboard
+        );
+        
+        const querySnapshot = await getDocs(q);
+        const ordersData = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data(),
+          // Convert Firestore Timestamp to Date string
+          createdAt: doc.data().createdAt?.toDate().toISOString() || new Date().toISOString()
+        }));
+        
+        setRecentOrders(ordersData);
+
+        // Calculate simple stats based on user data
+        setStats({
+          asClient: { 
+            totalSpent: user.totalSpent || 0, 
+            ordersPlaced: user.ordersPlaced || 0 
+          },
+          asRider: { 
+            totalEarned: user.totalEarned || 0, 
+            deliveriesCompleted: user.deliveriesCompleted || 0 
+          }
+        });
+        
+      } catch (error) {
+        console.error("Error fetching dashboard data:", error);
+      } finally {
+        setLoading(false);
       }
-    } catch {}
-    finally { setLoading(false); setRefreshing(false) }
-  }, [setUser])
-
-  useEffect(() => { fetchData() }, [fetchData])
-
-  // Poll for fresh data every 30s
-  useEffect(() => {
-    const interval = setInterval(() => fetchData(true), POLL_INTERVAL)
-    return () => clearInterval(interval)
-  }, [fetchData])
-
-  // Listen for real-time notification and order events via socket
-  useEffect(() => {
-    if (!accessToken) return
-    const socket = initSocket(accessToken)
-
-    const onNotification = () => {
-      setUnreadCount(c => c + 1)
-    }
-    const onOrderStatus = () => {
-      fetchData(true)
     }
 
-    socket.on(EVENTS.NOTIFICATION, onNotification)
-    socket.on(EVENTS.ORDER_STATUS, onOrderStatus)
-    socket.on(EVENTS.ORDER_ACCEPTED, onOrderStatus)
-    socket.on(EVENTS.ORDER_DELIVERED, onOrderStatus)
+    fetchDashboardData();
+  }, [user]);
 
-    return () => {
-      socket.off(EVENTS.NOTIFICATION, onNotification)
-      socket.off(EVENTS.ORDER_STATUS, onOrderStatus)
-      socket.off(EVENTS.ORDER_ACCEPTED, onOrderStatus)
-      socket.off(EVENTS.ORDER_DELIVERED, onOrderStatus)
-    }
-  }, [accessToken, fetchData])
+  if (!user || loading) return <DashboardSkeleton />
 
-  if (!user) return null
-
-  // Show full skeleton while loading for the first time
-  if (loading) return <DashboardSkeleton />
-
-  const limit = TRUST_LEVEL_LIMITS[user.trustLevel as keyof typeof TRUST_LEVEL_LIMITS]
-  const trustName = TRUST_LEVEL_NAMES[user.trustLevel as keyof typeof TRUST_LEVEL_NAMES]
+  const trustLimit = TRUST_LEVEL_LIMITS ? TRUST_LEVEL_LIMITS[user.trustLevel as keyof typeof TRUST_LEVEL_LIMITS] : 100;
+  const trustName = TRUST_LEVEL_NAMES ? TRUST_LEVEL_NAMES[user.trustLevel as keyof typeof TRUST_LEVEL_NAMES] : "New User";
+  
   const greeting = () => {
     const hour = new Date().getHours()
     if (hour < 12) return 'Good Morning'
@@ -171,24 +160,15 @@ export default function Dashboard() {
   }
 
   const heroStats = [
-    { value: user.completedOrders, label: 'Deliveries', icon: Package, color: 'text-blue-300' },
+    { value: user.deliveriesCompleted || 0, label: 'Deliveries', icon: Package, color: 'text-blue-300' },
     { value: user.rating > 0 ? user.rating.toFixed(1) : '—', label: 'Rating', icon: Star, color: 'text-amber-300' },
-    { value: limit === Infinity ? '∞' : `₹${limit}`, label: 'Order Limit', icon: Wallet, color: 'text-emerald-300' },
+    { value: trustLimit === Infinity ? '∞' : `₹${trustLimit}`, label: 'Order Limit', icon: Wallet, color: 'text-emerald-300' },
   ]
 
   return (
     <div className="page-container space-y-6 animate-fade-in">
-      {/* Live refresh indicator */}
-      {refreshing && (
-        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 bg-white/90 dark:bg-slate-800/90 backdrop-blur-md shadow-lg rounded-full px-4 py-2 flex items-center gap-2 animate-fade-in-down border border-gray-100">
-          <Loader2 className="w-3.5 h-3.5 animate-spin text-brand" />
-          <span className="text-xs font-bold text-navy-500">Updating...</span>
-        </div>
-      )}
-
       {/* Hero greeting */}
       <div className="relative bg-gradient-to-br from-navy via-navy-800 to-navy-900 rounded-3xl p-6 sm:p-8 text-white overflow-hidden">
-        {/* Decorative elements */}
         <div className="absolute -right-12 -top-12 w-48 h-48 bg-brand/10 rounded-full blur-2xl animate-pulse-soft" />
         <div className="absolute -right-6 -bottom-16 w-64 h-64 bg-brand/5 rounded-full animate-float-slow" />
         <div className="absolute left-1/2 -top-20 w-40 h-40 bg-white/5 rounded-full blur-xl animate-float-delayed" />

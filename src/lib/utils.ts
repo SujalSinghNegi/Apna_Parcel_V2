@@ -42,5 +42,7 @@ export const canClientCancel = (status: OrderStatus) =>
 export const isActiveOrder = (status: OrderStatus) =>
   !['DELIVERED', 'CANCELLED', 'ITEM_NOT_FOUND'].includes(status)
 
-export const initials = (name: string) =>
-  name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)
+export const initials = (name?: string | null) => {
+  if (!name || typeof name !== 'string') return 'U';
+  return name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2);
+}

@@ -1,14 +1,13 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
-import { User } from "@/types";
 
 interface AuthState {
-  user: User | null;
+  user: any | null; // Changed to 'any' to accept Firebase user objects safely
   accessToken: string | null;
   refreshToken: string | null;
   isLoading: boolean;
-  setAuth: (user: User, accessToken: string, refreshToken: string) => void;
-  setUser: (user: User) => void;
+  setAuth: (user: any, accessToken: string | null, refreshToken: string | null) => void;
+  setUser: (user: any) => void;
   clearAuth: () => void;
   setLoading: (v: boolean) => void;
 }
@@ -21,24 +20,13 @@ export const useAuthStore = create<AuthState>()(
       refreshToken: null,
       isLoading: false,
 
-      setAuth: (user, accessToken, refreshToken) => {
-        if (typeof window !== "undefined") {
-          localStorage.setItem("accessToken", accessToken);
-          localStorage.setItem("refreshToken", refreshToken);
-        }
-        set({ user, accessToken, refreshToken });
-      },
-
+      // Firebase and Zustand 'persist' handle storage automatically now
+      setAuth: (user, accessToken, refreshToken) => set({ user, accessToken, refreshToken }),
+      
       setUser: (user) => set({ user }),
-
-      clearAuth: () => {
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("accessToken");
-          localStorage.removeItem("refreshToken");
-        }
-        set({ user: null, accessToken: null, refreshToken: null });
-      },
-
+      
+      clearAuth: () => set({ user: null, accessToken: null, refreshToken: null }),
+      
       setLoading: (isLoading) => set({ isLoading }),
     }),
     {
@@ -46,7 +34,6 @@ export const useAuthStore = create<AuthState>()(
       partialize: (s) => ({
         user: s.user,
         accessToken: s.accessToken,
-        refreshToken: s.refreshToken,
       }),
     }
   )
