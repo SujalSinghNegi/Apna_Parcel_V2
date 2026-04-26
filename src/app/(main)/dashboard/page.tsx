@@ -157,8 +157,10 @@ useEffect(() => {
 
   if (!user || loading) return <DashboardSkeleton />
 
-  const trustLimit = TRUST_LEVEL_LIMITS ? TRUST_LEVEL_LIMITS[user.trustLevel as keyof typeof TRUST_LEVEL_LIMITS] : 100;
-  const trustName = TRUST_LEVEL_NAMES ? TRUST_LEVEL_NAMES[user.trustLevel as keyof typeof TRUST_LEVEL_NAMES] : "New User";
+ const levelKey = `LEVEL_${user.trustLevel}` as keyof typeof TRUST_LEVEL_LIMITS;
+  
+  const trustLimit = TRUST_LEVEL_LIMITS ? TRUST_LEVEL_LIMITS[levelKey] : 100;
+  const trustName = TRUST_LEVEL_NAMES ? TRUST_LEVEL_NAMES[levelKey as keyof typeof TRUST_LEVEL_NAMES] : "New User";
   
   const greeting = () => {
     const hour = new Date().getHours()
@@ -166,7 +168,7 @@ useEffect(() => {
     if (hour < 17) return 'Good Afternoon'
     return 'Good Evening'
   }
-
+console.log("Trust Level Debug:", user.trustLevel, typeof user.trustLevel, TRUST_LEVEL_LIMITS);
   const heroStats = [
     { value: user.deliveriesCompleted || 0, label: 'Deliveries', icon: Package, color: 'text-blue-300' },
     { value: user.rating > 0 ? user.rating.toFixed(1) : '—', label: 'Rating', icon: Star, color: 'text-amber-300' },
