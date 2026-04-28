@@ -268,12 +268,19 @@ export default function RiderPage() {
                         </div>
 
                         <div className="flex items-center justify-between bg-gray-50 dark:bg-gray-800 rounded-xl p-3">
-                          <div className="flex items-center gap-2.5">
-                            <Avatar src={order.clientPhone} name={order.clientName || 'User'} size="sm" />
-                            <div>
-                              <p className="text-xs font-bold text-navy dark:text-white">{order.clientName}</p>
-                            </div>
+
+                        <div className="flex items-center gap-2.5">
+                          <Avatar 
+                            src={undefined} 
+                            name={(order as any).clientName || order.client?.name || 'User'} 
+                            size="sm" 
+                          />
+                          <div>
+                            <p className="text-xs font-bold text-navy dark:text-white">
+                              {(order as any).clientName || order.client?.name || 'User'}
+                            </p>
                           </div>
+                        </div>
                           <Button size="sm" onClick={() => setShowAccept(order)}
                             className="shadow-md shadow-brand/20">
                             Accept Order
