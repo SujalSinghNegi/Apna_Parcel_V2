@@ -77,11 +77,10 @@ export const walletApi = {
 }
 
 export const uploadApi = {
-  profilePhoto: stub('upload.profilePhoto'),
-  orderItemPhoto: stub('upload.orderItemPhoto'),
-  chatPhoto: stub('upload.chatPhoto'),
-  complaintEvidence: stub('upload.complaintEvidence'),
-  verificationDoc: stub('upload.verificationDoc'),
+  chatPhoto: async (...args: any[]): Promise<any> => ({ data: { data: { message: {} } } }),
+  orderItemPhoto: async (...args: any[]): Promise<any> => ({ data: { data: { url: "" } } }),
+  complaintEvidence: async (...args: any[]): Promise<any> => ({ data: { data: { urls: [""] } } }),
+  profilePhoto: async (...args: any[]): Promise<any> => ({ data: { data: { url: "" } } }),
 }
 
 export const chatApi = { history: stub('chat.history') }
