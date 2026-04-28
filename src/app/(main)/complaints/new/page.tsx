@@ -41,10 +41,11 @@ export default function NewComplaintPage() {
     setLoading(true)
     try {
       let evidenceUrl: string | undefined
-      if (files.length > 0) {
-        const { data } = await uploadApi.complaintEvidence(files, form.orderId)
-        evidenceUrl = data.data.urls[0]
-      }
+     if (files.length > 0) {
+  // We force TypeScript to treat this as 'any' so it stops trying to guess the shape
+  const { data } = await uploadApi.complaintEvidence(files, form.orderId) as any;
+  evidenceUrl = data?.data?.urls?.[0] || "";
+}
       await complaintsApi.create({ ...form, evidenceUrl })
       toast.success('Complaint raised! Admin will review within 24 hours.')
       router.push('/complaints')
