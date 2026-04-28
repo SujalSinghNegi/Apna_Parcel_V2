@@ -74,7 +74,7 @@ const SplashScreen = () => {
 
 export default function LandingPage() {
   const router = useRouter();
-  const accessToken = useAuthStore((state: any) => state.accessToken);
+  const user = useAuthStore((state: any) => state.user);
   const [hydrated, setHydrated] = useState(false);
   const [splashFinished, setSplashFinished] = useState(false);
 
@@ -85,24 +85,23 @@ export default function LandingPage() {
     return () => unsub();
   }, []);
 
-  // 2. Minimum splash screen duration (so the cool animation actually plays)
+  // 2. Minimum splash screen duration
   useEffect(() => {
     const timer = setTimeout(() => {
       setSplashFinished(true);
-    }, 2200); // 2.2 seconds allows the progress bar to finish
+    }, 2200); 
     return () => clearTimeout(timer);
   }, []);
 
-  // 3. If already logged in, redirect to dashboard
+  // 3. Redirect ONLY if Firebase has confirmed a valid user exists
   useEffect(() => {
-    if (hydrated && accessToken) {
-      router.replace("/dashboard");
+    if (hydrated && user) {
+      router.replace(user.isAdmin ? "/admin" : user.role === "VENDOR" ? "/vendors/dashboard" : "/dashboard");
     }
-  }, [hydrated, accessToken, router]);
+  }, [hydrated, user, router]);
 
-  // Determine if we should show the splash screen
-  // Show it if: We haven't hydrated yet OR the artificial timer isn't done OR we are redirecting
-  const showSplash = !hydrated || !splashFinished || accessToken;
+  // Keep splash screen up if we are still loading OR if we are about to redirect the user
+  const showSplash = !hydrated || !splashFinished || (user !== null);
 
   return (
     <>
@@ -110,7 +109,6 @@ export default function LandingPage() {
         {showSplash && <SplashScreen key="splash" />}
       </AnimatePresence>
 
-      {/* Render main content underneath. It becomes visible once Splash unmounts */}
       {!showSplash && (
         <motion.div 
           initial={{ opacity: 0 }}

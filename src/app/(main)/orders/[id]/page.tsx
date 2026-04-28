@@ -1,29 +1,33 @@
 'use client'
-import { useEffect, useState, useRef, useCallback } from 'react'
-import { ordersApi, paymentsApi, chatApi, uploadApi, trackingApi, ratingsApi, getErrorMessage } from '@/lib/api'
+
+import { useEffect, useState, useRef } from 'react'
+import { useParams, useRouter } from 'next/navigation'
+import dynamic from 'next/dynamic'
+import Link from 'next/link'
+
 import { useAuthStore } from '@/store/auth'
-import { initSocket, joinOrderRoom, leaveOrderRoom, sendChatMessage, EVENTS } from '@/lib/socket'
-import { usePolling } from '@/hooks/usePolling'
+import { db } from '@/lib/firebase'
+import { doc, onSnapshot, updateDoc, collection, addDoc, query, orderBy, serverTimestamp } from 'firebase/firestore'
+
 import { Order, Message, RiderLocation, ORDER_STATUS_LABELS } from '@/types'
+import { fmt, cn } from '@/lib/utils'
+
 import { Button } from '@/components/ui/Button'
-import { Card, CardContent } from '@/components/ui/Card'
 import { StatusBadge, TrustBadge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { Modal } from '@/components/ui/Modal'
 import { Input } from '@/components/ui/Input'
-import { fmt, cn } from '@/lib/utils'
+import { StripePaymentModal } from '@/components/ui/StripePaymentModal'
+
 import {
   Send, Image as ImageIcon, CheckCircle2, XCircle, MapPin, Star,
-  AlertTriangle, Package, Loader2, Camera, ChevronDown,
-  Clock, Store, CreditCard, Truck, ShieldCheck, ArrowLeft, Eye,
-  ChevronRight, MessageCircle, Bike
+  Package, Loader2, Camera, ChevronDown, Clock, Store, CreditCard, 
+  Truck, ShieldCheck, ArrowLeft, Eye, ChevronRight, MessageCircle, Bike
 } from 'lucide-react'
 import toast from 'react-hot-toast'
-import { StripePaymentModal } from '@/components/ui/StripePaymentModal'
-import Link from 'next/link'
-import dynamic from 'next/dynamic'
-import { useParams, useRouter } from 'next/navigation'
 
+
+// ─── DYNAMIC MAP IMPORT ──────────────────────────────────────────────────
 const LiveMapDynamic = dynamic(
   () => import('@/components/ui/LiveMap').then(m => ({ default: m.LiveMap })),
   { ssr: false, loading: () => <div className="w-full h-48 rounded-2xl bg-gray-100 animate-pulse" /> }
@@ -31,7 +35,8 @@ const LiveMapDynamic = dynamic(
 
 const TRACKABLE = ['RIDER_LEFT', 'AT_SHOP', 'ITEM_PURCHASED', 'PHOTO_APPROVED', 'DELIVERING', 'ARRIVED']
 
-/* ─── Order Flow Steps (Rapido-style timeline) ─── */
+
+// ─── ORDER FLOW STEPS ────────────────────────────────────────────────────
 const STEPS = [
   { key: 'PENDING', label: 'Order Placed', icon: Package },
   { key: 'ACCEPTED', label: 'Rider Assigned', icon: Bike },
@@ -52,7 +57,8 @@ function getStepIndex(status: string) {
   return idx === -1 ? 0 : idx
 }
 
-/* ─── Skeleton ─── */
+
+// ─── SKELETON LOADER ─────────────────────────────────────────────────────
 function OrderSkeleton() {
   return (
     <div className="max-w-2xl mx-auto px-4 py-6 space-y-4 animate-pulse">
@@ -67,32 +73,16 @@ function OrderSkeleton() {
             <div className="h-5 w-40 bg-gray-100 rounded" />
             <div className="h-3 w-24 bg-gray-100 rounded" />
           </div>
-          <div className="h-7 w-24 bg-gray-100 rounded-full" />
         </div>
         <div className="h-px bg-gray-100" />
-        <div className="space-y-3">
-          {[1, 2, 3, 4, 5].map(i => (
-            <div key={i} className="flex items-center gap-3">
-              <div className="w-8 h-8 bg-gray-100 rounded-full" />
-              <div className="flex-1 h-4 bg-gray-100 rounded" />
-            </div>
-          ))}
-        </div>
-      </div>
-      <div className="bg-white rounded-2xl p-5 space-y-3">
-        <div className="h-5 w-32 bg-gray-100 rounded" />
-        <div className="grid grid-cols-2 gap-3">
-          {[1, 2, 3, 4].map(i => (
-            <div key={i} className="h-16 bg-gray-100 rounded-xl" />
-          ))}
-        </div>
       </div>
       <div className="h-14 bg-gray-200 rounded-2xl" />
     </div>
   )
 }
 
-/* ─── Photo Viewer Overlay ─── */
+
+// ─── PHOTO VIEWER OVERLAY ────────────────────────────────────────────────
 function PhotoViewer({ urls, onClose }: { urls: string[]; onClose: () => void }) {
   const [idx, setIdx] = useState(0)
   return (
@@ -108,8 +98,7 @@ function PhotoViewer({ urls, onClose }: { urls: string[]; onClose: () => void })
         <div className="flex justify-center gap-2 p-4">
           {urls.map((u, i) => (
             <button key={i} onClick={e => { e.stopPropagation(); setIdx(i) }}
-              className={cn('w-16 h-16 rounded-xl border-2 overflow-hidden transition-all',
-                i === idx ? 'border-brand scale-105' : 'border-white/20 opacity-60')}>
+              className={cn('w-16 h-16 rounded-xl border-2 overflow-hidden transition-all', i === idx ? 'border-brand scale-105' : 'border-white/20 opacity-60')}>
               <img src={u} alt="" className="w-full h-full object-cover" />
             </button>
           ))}
@@ -118,6 +107,7 @@ function PhotoViewer({ urls, onClose }: { urls: string[]; onClose: () => void })
     </div>
   )
 }
+
 
 const QUICK_MSGS = [
   { key: 'ON_THE_WAY', label: '🚴 On my way' },
@@ -128,24 +118,34 @@ const QUICK_MSGS = [
   { key: 'COMING_IN_5', label: '⏱️ 5 min' },
 ]
 
+
+// ═════════════════════════════════════════════════════════════════════════
+// MAIN COMPONENT
+// ═════════════════════════════════════════════════════════════════════════
+
 export default function OrderDetailPage() {
   const { id } = useParams() as { id: string }
   const router = useRouter()
-  const { user, accessToken } = useAuthStore() as any
+  const { user } = useAuthStore() as any
+  
   const [order, setOrder] = useState<Order | null>(null)
   const [messages, setMessages] = useState<Message[]>([])
   const [loading, setLoading] = useState(true)
   const [actionLoading, setActionLoading] = useState('')
+  
   const [msgText, setMsgText] = useState('')
   const [otpInput, setOtpInput] = useState(['', '', '', ''])
   const [cancelReason, setCancelReason] = useState('')
   const [rejectReason, setRejectReason] = useState('')
+  
   const [showCancel, setShowCancel] = useState(false)
   const [showReject, setShowReject] = useState(false)
   const [showOtp, setShowOtp] = useState(false)
+  
   const [photoFiles, setPhotoFiles] = useState<File[]>([])
   const [actualPrice, setActualPrice] = useState('')
   const [showPhotoUpload, setShowPhotoUpload] = useState(false)
+  
   const [paymentModal, setPaymentModal] = useState<{ open: boolean; clientSecret: string; amount: number }>({ open: false, clientSecret: '', amount: 0 })
   const [hasRated, setHasRated] = useState(false)
   const [showChat, setShowChat] = useState(false)
@@ -159,142 +159,257 @@ export default function OrderDetailPage() {
   const fileRef = useRef<HTMLInputElement>(null)
   const otpRefs = useRef<(HTMLInputElement | null)[]>([])
 
-  const isRider = order?.riderId === user?.id
-  const isClient = order?.clientId === user?.id
-  const showMap = order && TRACKABLE.includes(order.status) && isClient
 
-  const fetchOrder = useCallback(async () => {
+  // Determine User Role safely
+  const currentUserId = user?.uid || user?.id;
+  const isRider = order?.riderId === currentUserId;
+  const isClient = order?.clientId === currentUserId;
+  const showMap = order && TRACKABLE.includes(order.status) && isClient;
+
+
+  // ──🔥 FIREBASE: REAL-TIME ORDER SYNC ─────────────────────────────────────
+  
+  useEffect(() => {
+    if (!id) return;
+    
+    // Open a live tunnel to the Firestore document
+    const unsub = onSnapshot(doc(db, "orders", id), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        
+        setOrder({ 
+          id: docSnap.id, 
+          ...data,
+          // Safely handle Firebase Timestamps
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString()
+        } as any);
+        
+        setLoading(false);
+      } else {
+        toast.error('Order not found');
+        setLoading(false);
+      }
+    });
+
+    return () => unsub();
+  }, [id]);
+
+
+  // ──🔥 FIREBASE: REAL-TIME CHAT SYNC ──────────────────────────────────────
+  
+  useEffect(() => {
+    if (!id) return;
+    
+    const messagesRef = collection(db, "orders", id, "messages");
+    const q = query(messagesRef, orderBy("createdAt", "asc"));
+    
+    const unsub = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as any));
+      setMessages(msgs);
+      setTimeout(() => chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 100);
+    });
+
+    return () => unsub();
+  }, [id]);
+
+
+  // ──🔥 FIREBASE: STATUS UPDATER ───────────────────────────────────────────
+  
+  const updateStatus = async (status: string, extraData = {}) => {
+    setActionLoading(status.toLowerCase());
     try {
-      const { data } = await ordersApi.getById(id)
-      setOrder(data.data)
-    } catch { toast.error('Order not found') }
-    finally { setLoading(false) }
-  }, [id])
-
-  useEffect(() => {
-    if (!order) return
-    if (TRACKABLE.includes(order.status) && isClient) {
-      trackingApi.getLocation(id).then(r => { if (r.data.data) setLastKnownLocation(r.data.data) }).catch(() => {})
+      await updateDoc(doc(db, "orders", id), {
+        status,
+        updatedAt: serverTimestamp(),
+        ...extraData
+      });
+      toast.success(`Order updated to ${status.replace(/_/g, ' ')}`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to update order");
+    } finally {
+      setActionLoading('');
     }
-  }, [order?.status, isClient, id])
+  };
 
-  useEffect(() => {
-    fetchOrder()
-    chatApi.history(id).then(r => setMessages(r.data.data || [])).catch(() => {})
-  }, [fetchOrder, id])
 
-  const isActiveOrder = order && !['DELIVERED', 'CANCELLED', 'ITEM_NOT_FOUND'].includes(order.status)
-  usePolling(fetchOrder, 10_000, !!isActiveOrder)
-
-  useEffect(() => {
-    if (order?.status === 'DELIVERED') {
-      ratingsApi.check(id).then(r => { if (r.data.data?.hasRated) setHasRated(true) }).catch(() => {})
-    }
-  }, [order?.status, id])
-
-  useEffect(() => {
-    if (!accessToken) return
-    const sock = initSocket(accessToken)
-    joinOrderRoom(id)
-
-    sock.on(EVENTS.ORDER_STATUS, ({ status }: any) => {
-      setOrder(p => p ? { ...p, status } : p)
-      toast.success(`Order ${status.replace(/_/g, ' ').toLowerCase()}`)
-      fetchOrder()
-    })
-    sock.on(EVENTS.ORDER_ACCEPTED, () => { toast.success('Rider accepted! 🎉'); fetchOrder() })
-    sock.on(EVENTS.RIDER_LEFT, () => { toast('Rider heading to shop 🚴', { icon: '🛵' }); fetchOrder() })
-    sock.on(EVENTS.RIDER_ARRIVED, () => { toast.success('Rider arrived!'); fetchOrder() })
-    sock.on(EVENTS.ORDER_DELIVERED, () => { toast.success('Delivered! 🎉'); fetchOrder() })
-    sock.on(EVENTS.ORDER_CANCELLED, () => { toast.error('Order cancelled'); fetchOrder() })
-    sock.on(EVENTS.ORDER_OTP, ({ otp }: any) => {
-      if (otp) { setOrder(p => p ? { ...p, deliveryOtp: otp } : p); toast.success(`Delivery OTP: ${otp}`, { duration: 15000 }) }
-    })
-    sock.on(EVENTS.MESSAGE_RECEIVE, (msg: Message) => {
-      setMessages(p => [...p, msg])
-      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-    })
-    sock.on(EVENTS.RIDER_LOCATION, (payload: any) => {
-      const loc: RiderLocation = { latitude: payload.latitude, longitude: payload.longitude, accuracy: payload.accuracy, heading: payload.heading, speed: payload.speed, updatedAt: payload.timestamp ?? new Date().toISOString() }
-      setLastKnownLocation(loc)
-      if (mapLocationUpdater.current) mapLocationUpdater.current(loc)
-    })
-
-    return () => {
-      leaveOrderRoom(id)
-      ;[EVENTS.ORDER_STATUS, EVENTS.ORDER_ACCEPTED, EVENTS.RIDER_LEFT, EVENTS.RIDER_ARRIVED, EVENTS.ORDER_DELIVERED, EVENTS.ORDER_CANCELLED, EVENTS.ORDER_OTP, EVENTS.MESSAGE_RECEIVE, EVENTS.RIDER_LOCATION].forEach(e => sock.off(e))
-    }
-  }, [accessToken, id, fetchOrder])
-
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }) }, [messages])
-
-  const doAction = async (action: string, fn: () => Promise<any>) => {
-    setActionLoading(action)
-    try { await fn(); await fetchOrder() } catch (e) { toast.error(getErrorMessage(e)) }
-    finally { setActionLoading('') }
-  }
+  // ─── ACTION HANDLERS ─────────────────────────────────────────────────────
 
   const handlePay = async () => {
-    setActionLoading('pay')
-    try {
-      const { data } = await paymentsApi.createIntent(id)
-      setPaymentModal({ open: true, clientSecret: data.data.clientSecret, amount: data.data.amount })
-    } catch (e) { toast.error(getErrorMessage(e)) }
-    finally { setActionLoading('') }
-  }
+    setActionLoading('pay');
+    
+    // MOCK PAYMENT FOR NOW
+    setTimeout(async () => {
+      await updateStatus('PAID');
+      toast.success('Payment successful! ✅');
+      setActionLoading('');
+    }, 1500);
+  };
 
-  const handlePaymentSuccess = async () => {
-    setPaymentModal({ open: false, clientSecret: '', amount: 0 })
-    setActionLoading('confirming')
-    try {
-      await paymentsApi.confirmPayment(id)
-      await ordersApi.markPaid(id)
-      toast.success('Payment successful! ✅')
-    } catch (e) { toast.error(getErrorMessage(e)) }
-    await fetchOrder()
-    setActionLoading('')
-  }
 
-  const handleSendMsg = () => { if (!msgText.trim()) return; sendChatMessage(id, msgText); setMsgText('') }
-  const handleQuickMsg = (key: string) => sendChatMessage(id, undefined, undefined, key)
+  const handleSendMsg = async (textOverride?: string) => {
+    const text = textOverride || msgText;
+    if (!text.trim()) return;
+    
+    setMsgText('');
+    
+    await addDoc(collection(db, 'orders', id, 'messages'), {
+      content: text,
+      sender: { id: currentUserId, name: user?.name || "User", profilePhoto: user?.profilePhoto || '' },
+      createdAt: serverTimestamp()
+    });
+  };
+
+  const handleQuickMsg = (key: string) => {
+    const msg = QUICK_MSGS.find(q => q.key === key)?.label || key;
+    handleSendMsg(msg);
+  };
+
+
+  // ──📸 FUTURE CODE: HANDLE CHAT PHOTOS (BLAZE PLAN) ───────────────────────
+  
   const handlePhotoSend = async (file: File) => {
-    doAction('photo', async () => { const { data } = await uploadApi.chatPhoto(file, id); setMessages(p => [...p, data.data.message]) })
-  }
+    toast.error("Photo uploads are disabled (Free Tier Mode).");
+    
+    /* ========================================================================
+    🚀 WHEN YOU UPGRADE TO BLAZE PLAN, UNCOMMENT THIS CODE:
+    ========================================================================
+    
+    toast('Uploading photo...', { icon: '⏳' });
+    try {
+      const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const storage = getStorage();
+      
+      // Create a reference in Firebase Storage
+      const photoRef = ref(storage, `chat/${id}/${Date.now()}_${file.name}`);
+      
+      // Upload the file
+      await uploadBytes(photoRef, file);
+      
+      // Get the URL
+      const url = await getDownloadURL(photoRef);
+      
+      // Save URL to Firestore Chat Collection
+      await addDoc(collection(db, 'orders', id, 'messages'), {
+        photoUrl: url,
+        sender: { id: currentUserId, name: user.name, profilePhoto: user.profilePhoto || '' },
+        createdAt: serverTimestamp()
+      });
+      
+    } catch (e) {
+      toast.error("Photo upload failed. Ensure Storage Rules are public.");
+    }
+    ========================================================================
+    */
+  };
+
+
+  // ──📸 FUTURE CODE: HANDLE RIDER RECEIPT (BLAZE PLAN) ─────────────────────
 
   const handleItemPurchased = async () => {
-    if (photoFiles.length === 0) { toast.error('Take at least one photo'); return }
-    if (!actualPrice) { toast.error('Enter actual price'); return }
-    doAction('purchased', async () => {
-      const urls: string[] = []
-      for (const file of photoFiles) { const { data: d } = await uploadApi.orderItemPhoto(file, id); urls.push(d.data.url) }
-      await ordersApi.itemPurchased(id, urls[0], parseFloat(actualPrice), urls)
-      setPhotoFiles([]); setShowPhotoUpload(false)
-      toast.success('Photos sent for approval!')
-    })
-  }
+    
+    if (!actualPrice) { 
+      toast.error('Enter actual price'); 
+      return; 
+    }
+    
+    setActionLoading('purchased');
+    
+    try {
+      // 🚧 PLACEHOLDER IMAGE FOR FREE TIER
+      const photoUrls = ["https://via.placeholder.com/400x300/e2e8f0/0f172a?text=Receipt+Omitted+(Testing)"];
+      
+      /* ======================================================================
+      🚀 WHEN YOU UPGRADE TO BLAZE PLAN, REPLACE THE LINE ABOVE WITH THIS:
+      ======================================================================
+      
+      if (photoFiles.length === 0) { toast.error('Take at least one photo'); setActionLoading(''); return; }
+      
+      const { getStorage, ref, uploadBytes, getDownloadURL } = await import('firebase/storage');
+      const storage = getStorage();
+      const photoUrls: string[] = [];
+      
+      for (const file of photoFiles) {
+        const photoRef = ref(storage, `orders/${id}/receipts/${Date.now()}_${file.name}`);
+        await uploadBytes(photoRef, file);
+        const url = await getDownloadURL(photoRef);
+        photoUrls.push(url);
+      }
+      ======================================================================
+      */
+
+      // Update Firestore directly to move the order forward
+      await updateDoc(doc(db, "orders", id), {
+        status: 'ITEM_PURCHASED',
+        purchasedPhotoUrls: photoUrls,
+        actualPrice: parseFloat(actualPrice),
+        updatedAt: serverTimestamp()
+      });
+      
+      setPhotoFiles([]); 
+      setShowPhotoUpload(false);
+      toast.success('Item purchased!');
+      
+    } catch (e: any) {
+      toast.error("Failed to update status.");
+    } finally {
+      setActionLoading('');
+    }
+  };
+
+
+  // ─── OTP HANDLERS ────────────────────────────────────────────────────────
 
   const handleOtpSubmit = async () => {
-    const code = otpInput.join('')
-    if (code.length !== 4) { toast.error('Enter 4-digit OTP'); return }
-    doAction('otp', async () => { await ordersApi.verifyOtp(id, code); toast.success('Delivered! 🎉'); setShowOtp(false) })
-  }
+    const code = otpInput.join('');
+    if (code.length !== 4) { toast.error('Enter 4-digit OTP'); return; }
+    
+    setActionLoading('otp');
+    // Fake OTP verify for now, updates to Delivered
+    await updateStatus('DELIVERED');
+    toast.success('Order successfully Delivered! 🎉');
+    setShowOtp(false);
+  };
 
   const handleOtpChange = (i: number, val: string) => {
-    const v = val.replace(/\D/g, '').slice(-1)
-    const next = [...otpInput]; next[i] = v; setOtpInput(next)
-    if (v && i < 3) otpRefs.current[i + 1]?.focus()
-  }
+    const v = val.replace(/\D/g, '').slice(-1);
+    const next = [...otpInput]; next[i] = v; setOtpInput(next);
+    if (v && i < 3) otpRefs.current[i + 1]?.focus();
+  };
+
+
+
+  // ═════════════════════════════════════════════════════════════════════════
+  // RENDER LOGIC
+  // ═════════════════════════════════════════════════════════════════════════
 
   if (loading) return <OrderSkeleton />
-  if (!order) return <div className="page-container text-center text-gray-500">Order not found</div>
+  
+  if (!order) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen p-4">
+        <p className="text-gray-500">Order not found or has been deleted.</p>
+        <Button onClick={() => router.push('/dashboard')} className="mt-4">Go to Dashboard</Button>
+      </div>
+    );
+  }
 
-  const counterpart = isClient ? order.rider : order.client
+  // Safely grab the other person's info, depending on who is looking
+  const counterpartName = isClient ? (order as any).rider?.name : (order as any).clientName || (order as any).client?.name;
+  const counterpartPhoto = isClient ? (order as any).rider?.profilePhoto : (order as any).client?.profilePhoto;
+  const counterpartTrust = isClient ? (order as any).rider?.trustLevel : (order as any).client?.trustLevel;
+  const counterpartRating = isClient ? (order as any).rider?.rating : 0;
+
   const currentStep = getStepIndex(order.status)
   const isCancelled = ['CANCELLED', 'ITEM_NOT_FOUND', 'DISPUTED'].includes(order.status)
-  const photoUrls = order.purchasedPhotoUrls?.length ? order.purchasedPhotoUrls : order.purchasedPhotoUrl ? [order.purchasedPhotoUrl] : []
+  
+  // Safely handle photos array
+  const photoUrls = order.purchasedPhotoUrls?.length 
+    ? order.purchasedPhotoUrls 
+    : order.purchasedPhotoUrl ? [order.purchasedPhotoUrl] : []
 
   return (
     <div className="min-h-screen bg-gray-50 pb-36">
+      
       {/* ─── Sticky Top Bar ─── */}
       <div className="sticky top-0 z-30 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-b border-gray-100">
         <div className="max-w-2xl mx-auto flex items-center justify-between px-4 h-14">
@@ -372,6 +487,39 @@ export default function OrderDetailPage() {
           )}
         </div>
 
+        {/* ─── Searching for Rider Banner (PENDING) ─── */}
+        {order.status === 'PENDING' && (
+          <div className="bg-gradient-to-r from-brand/10 via-brand/5 to-orange-50 dark:from-brand/20 dark:via-brand/10 dark:to-orange-500/10 rounded-2xl border border-brand/20 overflow-hidden">
+            <div className="p-4 space-y-3">
+              <div className="flex items-center gap-3">
+                <div className="relative w-12 h-12 shrink-0">
+                  {[0, 1, 2].map(i => (
+                    <div key={i} className="absolute inset-0 rounded-full border border-brand/40 animate-ping"
+                      style={{ animationDelay: `${i * 0.6}s`, animationDuration: '2s' }} />
+                  ))}
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <div className="w-8 h-8 bg-brand/20 rounded-full flex items-center justify-center">
+                      <Bike className="w-4 h-4 text-brand" />
+                    </div>
+                  </div>
+                </div>
+                <div>
+                  <p className="font-extrabold text-navy dark:text-white text-sm">Searching for a rider</p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400">
+                    {order.shopMode === 'SINGLE_SHOP' && order.shopName ? `📍 ${order.shopName}` : ''}
+                    {order.shopMode === 'MULTIPLE_SHOPS' ? '🏬 Checking 2–3 shops nearby' : ''}
+                    {order.shopMode === 'ENTIRE_AREA' ? '🗺️ Searching all of Dwarahat' : ''}
+                    {order.shopMode === 'URGENT' ? '⚡ Priority delivery' : ''}
+                  </p>
+                </div>
+              </div>
+              <div className="relative h-1.5 bg-gray-200/60 dark:bg-gray-700/60 rounded-full overflow-hidden">
+                <div className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-brand to-orange-400 rounded-full animate-search-strip" />
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* ─── Progress Timeline ─── */}
         {!isCancelled && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
@@ -400,20 +548,6 @@ export default function OrderDetailPage() {
                       <p className={cn('text-sm font-bold', current ? 'text-navy' : done ? 'text-green-700' : 'text-gray-400')}>
                         {step.label}
                       </p>
-                      {current && (
-                        <p className="text-xs text-gray-400 mt-0.5">
-                          {order.status === 'PENDING' && 'Searching for a nearby rider...'}
-                          {order.status === 'ACCEPTED' && 'Rider assigned, pay to continue'}
-                          {order.status === 'PAID' && 'Payment done, rider will leave soon'}
-                          {order.status === 'RIDER_LEFT' && (order.declaredEtaMinutes ? `ETA: ~${order.declaredEtaMinutes} min` : 'Heading to shop')}
-                          {order.status === 'AT_SHOP' && 'Buying your item...'}
-                          {order.status === 'ITEM_PURCHASED' && 'Review the item photos'}
-                          {order.status === 'PHOTO_APPROVED' && 'Rider starting delivery'}
-                          {order.status === 'DELIVERING' && 'On the way to you!'}
-                          {order.status === 'ARRIVED' && 'Share OTP to receive item'}
-                          {order.status === 'DELIVERED' && 'Order complete!'}
-                        </p>
-                      )}
                     </div>
                   </div>
                 )
@@ -470,35 +604,35 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        {/* ─── Rider / Client Card ─── */}
-        {counterpart && (
+        {/* ─── Rider / Client Info Card ─── */}
+        {counterpartName && order.status !== 'PENDING' && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 flex items-center gap-3">
-            <Avatar src={counterpart.profilePhoto} name={counterpart.name} size="md" />
+            <Avatar src={counterpartPhoto} name={counterpartName} size="md" />
             <div className="flex-1 min-w-0">
-              <p className="font-bold text-navy text-sm truncate">{counterpart.name}</p>
+              <p className="font-bold text-navy text-sm truncate">{counterpartName}</p>
               <div className="flex items-center gap-2 mt-0.5">
-                <TrustBadge level={counterpart.trustLevel} />
-                {counterpart.rating > 0 && (
+                <TrustBadge level={counterpartTrust || 'LEVEL_1'} />
+                {counterpartRating > 0 && (
                   <span className="flex items-center gap-0.5 text-xs text-gray-500">
-                    <Star className="w-3 h-3 text-amber-400 fill-amber-400" />{counterpart.rating.toFixed(1)}
+                    <Star className="w-3 h-3 text-amber-400 fill-amber-400" />{counterpartRating.toFixed(1)}
                   </span>
                 )}
               </div>
             </div>
-            {isActiveOrder && (
-              <button onClick={() => setShowChat(!showChat)}
-                className="w-10 h-10 bg-brand-50 hover:bg-brand-100 rounded-xl flex items-center justify-center transition-colors">
-                <MessageCircle className="w-5 h-5 text-brand" />
-              </button>
-            )}
+            <button onClick={() => setShowChat(!showChat)}
+              className="w-10 h-10 bg-brand-50 hover:bg-brand-100 rounded-xl flex items-center justify-center transition-colors">
+              <MessageCircle className="w-5 h-5 text-brand" />
+            </button>
           </div>
         )}
 
-        {/* ─── ACTION AREA ─── */}
+        {/* ─── ACTION AREA (BUTTONS FOR CLIENT AND RIDER) ─── */}
         <div className="space-y-2">
+          
+          {/* CLIENT VIEW */}
           {isClient && (
             <>
-              {order.status === 'ACCEPTED' && !order.payment?.status?.match(/AUTHORIZED|CAPTURED/) && (
+              {order.status === 'ACCEPTED' && (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-blue-50 rounded-xl flex items-center justify-center">
@@ -515,7 +649,7 @@ export default function OrderDetailPage() {
                 </div>
               )}
 
-              {((order.status === 'ACCEPTED' && order.payment?.status?.match(/AUTHORIZED|CAPTURED/)) || order.status === 'PAID') && (
+              {order.status === 'PAID' && (
                 <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
                   <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center shrink-0">
                     <ShieldCheck className="w-5 h-5 text-green-600" />
@@ -550,46 +684,13 @@ export default function OrderDetailPage() {
                       <p className="text-xs text-gray-400">Check the photos and approve or reject</p>
                     </div>
                   </div>
-                  {photoUrls.length > 0 && (
-                    <div className="flex gap-2 overflow-x-auto scrollbar-none">
-                      {photoUrls.map((url: string, i: number) => (
-                        <button key={i} onClick={() => setShowPhotoViewer(true)}
-                          className="shrink-0 w-24 h-24 rounded-xl overflow-hidden border border-gray-200">
-                          <img src={url} alt="" className="w-full h-full object-cover" />
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                  {order.actualPrice != null && (
-                    <div className="flex items-center justify-between px-3 py-2.5 bg-gray-50 rounded-xl text-sm">
-                      <span className="text-gray-500">Actual Price</span>
-                      <span className={cn('font-bold', order.actualPrice !== order.expectedPrice ? 'text-amber-600' : 'text-green-600')}>
-                        {fmt.currency(order.actualPrice)}
-                        {order.actualPrice !== order.expectedPrice && (
-                          <span className="text-xs text-gray-400 ml-1">(was {fmt.currency(order.expectedPrice)})</span>
-                        )}
-                      </span>
-                    </div>
-                  )}
                   <div className="grid grid-cols-2 gap-2">
-                    <Button variant="danger" onClick={() => setShowReject(true)} loading={actionLoading === 'reject'}>
+                    <Button variant="danger" onClick={() => setShowReject(true)}>
                       <XCircle className="w-4 h-4" /> Reject
                     </Button>
-                    <Button onClick={() => doAction('approve', () => ordersApi.approvePhoto(id))} loading={actionLoading === 'approve'}>
+                    <Button onClick={() => updateStatus('PHOTO_APPROVED')} loading={actionLoading === 'photo_approved'}>
                       <CheckCircle2 className="w-4 h-4" /> Approve
                     </Button>
-                  </div>
-                </div>
-              )}
-
-              {order.status === 'PHOTO_APPROVED' && (
-                <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
-                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center shrink-0">
-                    <CheckCircle2 className="w-5 h-5 text-green-600" />
-                  </div>
-                  <div>
-                    <p className="font-bold text-green-700 text-sm">Photo Approved</p>
-                    <p className="text-xs text-green-600">Rider will start delivering soon</p>
                   </div>
                 </div>
               )}
@@ -601,7 +702,6 @@ export default function OrderDetailPage() {
                   </div>
                   <div>
                     <p className="font-bold text-blue-700 text-sm">On the Way!</p>
-                    <p className="text-xs text-blue-600">Rider is heading to your location</p>
                   </div>
                 </div>
               )}
@@ -618,32 +718,25 @@ export default function OrderDetailPage() {
                     </div>
                   </div>
                   <Button className="w-full" size="lg" onClick={() => setShowOtp(true)}>
-                    🔑 Share Delivery OTP
+                    🔑 View Delivery OTP
                   </Button>
                 </div>
               )}
 
               {order.status === 'DELIVERED' && (
-                hasRated ? (
-                  <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
-                    <p className="text-sm font-bold text-green-700">You rated this order</p>
-                    <Link href={`/ratings/${id}?ratedUserId=${order.riderId}`} className="ml-auto text-xs font-bold text-green-600">View →</Link>
-                  </div>
-                ) : (
-                  <Link href={`/ratings/${id}?ratedUserId=${order.riderId}`}>
-                    <Button className="w-full" size="lg" variant="secondary">
-                      <Star className="w-4 h-4" /> Rate Your Rider
-                    </Button>
-                  </Link>
-                )
+                <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
+                  <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
+                  <p className="text-sm font-bold text-green-700">Order successfully delivered!</p>
+                </div>
               )}
             </>
           )}
 
+
+          {/* RIDER VIEW */}
           {isRider && (
             <>
-              {order.status === 'ACCEPTED' && !order.payment?.status?.match(/AUTHORIZED|CAPTURED/) && (
+              {order.status === 'ACCEPTED' && (
                 <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 flex items-center gap-3">
                   <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0 animate-pulse-soft">
                     <Clock className="w-5 h-5 text-amber-600" />
@@ -655,20 +748,20 @@ export default function OrderDetailPage() {
                 </div>
               )}
 
-              {((order.status === 'ACCEPTED' && order.payment?.status?.match(/AUTHORIZED|CAPTURED/)) || order.status === 'PAID') && (
+              {order.status === 'PAID' && (
                 <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4 space-y-3">
                   <div className="bg-green-50 rounded-xl p-3 flex items-center gap-2">
                     <ShieldCheck className="w-4 h-4 text-green-600 shrink-0" />
                     <p className="text-xs text-green-700 font-medium">{fmt.currency(order.totalAmount)} secured. Go buy the item!</p>
                   </div>
-                  <Button className="w-full" size="lg" onClick={() => doAction('leaving', () => ordersApi.leaving(id))} loading={actionLoading === 'leaving'}>
+                  <Button className="w-full" size="lg" onClick={() => updateStatus('RIDER_LEFT')} loading={actionLoading === 'rider_left'}>
                     🚴 I&apos;m Leaving Now
                   </Button>
                 </div>
               )}
 
               {order.status === 'RIDER_LEFT' && (
-                <Button className="w-full" size="lg" onClick={() => doAction('atShop', () => ordersApi.atShop(id))} loading={actionLoading === 'atShop'}>
+                <Button className="w-full" size="lg" onClick={() => updateStatus('AT_SHOP')} loading={actionLoading === 'at_shop'}>
                   <Store className="w-4 h-4" /> Arrived at Shop
                 </Button>
               )}
@@ -685,7 +778,7 @@ export default function OrderDetailPage() {
                     </div>
                   </div>
                   <Button className="w-full" size="lg" onClick={() => setShowPhotoUpload(true)}>
-                    <Camera className="w-4 h-4" /> Upload Photos & Price
+                    <Camera className="w-4 h-4" /> Upload Price & Photos
                   </Button>
                 </div>
               )}
@@ -697,7 +790,7 @@ export default function OrderDetailPage() {
                   </div>
                   <div>
                     <p className="font-bold text-amber-700 text-sm">Waiting for Approval</p>
-                    <p className="text-xs text-amber-600">Client is reviewing the item photos</p>
+                    <p className="text-xs text-amber-600">Client is reviewing the item details</p>
                   </div>
                 </div>
               )}
@@ -708,14 +801,14 @@ export default function OrderDetailPage() {
                     <CheckCircle2 className="w-4 h-4 text-green-600 shrink-0" />
                     <p className="text-xs text-green-700 font-medium">Client approved! Head to delivery location.</p>
                   </div>
-                  <Button className="w-full" size="lg" onClick={() => doAction('delivering', () => ordersApi.delivering(id))} loading={actionLoading === 'delivering'}>
+                  <Button className="w-full" size="lg" onClick={() => updateStatus('DELIVERING')} loading={actionLoading === 'delivering'}>
                     🚴 Start Delivering
                   </Button>
                 </div>
               )}
 
               {order.status === 'DELIVERING' && (
-                <Button className="w-full" size="lg" onClick={() => doAction('arrived', () => ordersApi.arrived(id))} loading={actionLoading === 'arrived'}>
+                <Button className="w-full" size="lg" onClick={() => updateStatus('ARRIVED')} loading={actionLoading === 'arrived'}>
                   <MapPin className="w-4 h-4" /> Arrived at Location
                 </Button>
               )}
@@ -726,23 +819,11 @@ export default function OrderDetailPage() {
                 </Button>
               )}
 
-              {order.status === 'DELIVERED' && (
-                hasRated ? (
-                  <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
-                    <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
-                    <p className="text-sm font-bold text-green-700">You rated this order</p>
-                    <Link href={`/ratings/${id}?ratedUserId=${order.clientId}`} className="ml-auto text-xs font-bold text-green-600">View →</Link>
-                  </div>
-                ) : (
-                  <Link href={`/ratings/${id}?ratedUserId=${order.clientId}`}>
-                    <Button className="w-full" size="lg" variant="secondary"><Star className="w-4 h-4" /> Rate Client</Button>
-                  </Link>
-                )
-              )}
             </>
           )}
 
-          {['PENDING', 'ACCEPTED'].includes(order.status) && !order.payment?.status?.match(/AUTHORIZED|CAPTURED/) && (
+          {/* Cancel Order Button */}
+          {['PENDING', 'ACCEPTED'].includes(order.status) && (
             <button onClick={() => setShowCancel(true)}
               className="w-full py-3 text-sm font-bold text-red-500 hover:text-red-600 hover:bg-red-50 rounded-2xl transition-colors">
               Cancel Order
@@ -750,32 +831,36 @@ export default function OrderDetailPage() {
           )}
         </div>
 
-        {/* ─── Inline Chat ─── */}
+
+        {/* ─── INLINE CHAT COMPONENT ──────────────────────────────────────── */}
         {showChat && order.status !== 'PENDING' && !['DELIVERED', 'CANCELLED', 'ITEM_NOT_FOUND'].includes(order.status) && (
           <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden animate-slide-up">
+            
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 bg-gray-50">
               <h3 className="font-bold text-navy text-sm flex items-center gap-2">
                 <MessageCircle className="w-4 h-4 text-brand" /> Chat
               </h3>
               <button onClick={() => setShowChat(false)} className="text-xs font-bold text-gray-400 hover:text-gray-600">Close</button>
             </div>
+            
             <div className="p-3 space-y-2 max-h-60 overflow-y-auto scrollbar-none">
               {messages.length === 0 && <p className="text-center text-sm text-gray-400 py-6">No messages yet</p>}
+              
               {messages.map(msg => {
-                const isMine = msg.sender.id === user?.id
+                const isMine = msg.sender.id === currentUserId;
                 return (
                   <div key={msg.id} className={cn('flex gap-2', isMine ? 'flex-row-reverse' : '')}>
                     <Avatar src={msg.sender.profilePhoto} name={msg.sender.name} size="sm" className="shrink-0 mt-1" />
                     <div className={cn('max-w-[70%] rounded-2xl px-3 py-2', isMine ? 'bg-brand text-white rounded-tr-sm' : 'bg-gray-100 text-navy rounded-tl-sm')}>
                       {msg.photoUrl && <img src={msg.photoUrl} alt="" className="rounded-xl mb-1 max-w-full" />}
                       {msg.content && <p className="text-sm">{msg.content}</p>}
-                      <p className={cn('text-[10px] mt-0.5', isMine ? 'text-white/60' : 'text-gray-400')}>{fmt.time(msg.createdAt)}</p>
                     </div>
                   </div>
                 )
               })}
               <div ref={chatEndRef} />
             </div>
+
             <div className="border-t border-gray-100 p-2">
               <div className="flex gap-1.5 overflow-x-auto scrollbar-none pb-2">
                 {QUICK_MSGS.map(q => (
@@ -790,9 +875,11 @@ export default function OrderDetailPage() {
                   <ImageIcon className="w-4 h-4" />
                 </button>
                 <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={e => { const f = e.target.files?.[0]; if (f) handlePhotoSend(f) }} />
+                
                 <input className="flex-1 bg-gray-100 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand/20"
                   placeholder="Message..." value={msgText} onChange={e => setMsgText(e.target.value)} onKeyDown={e => e.key === 'Enter' && handleSendMsg()} />
-                <button onClick={handleSendMsg} disabled={!msgText.trim()} className="p-2.5 rounded-xl bg-brand text-white disabled:opacity-40 hover:bg-brand-600 transition-colors">
+                
+                <button onClick={() => handleSendMsg()} disabled={!msgText.trim()} className="p-2.5 rounded-xl bg-brand text-white disabled:opacity-40 hover:bg-brand-600 transition-colors">
                   <Send className="w-4 h-4" />
                 </button>
               </div>
@@ -800,8 +887,8 @@ export default function OrderDetailPage() {
           </div>
         )}
 
-        {/* Chat FAB */}
-        {!showChat && isActiveOrder && order.status !== 'PENDING' && (
+        {/* Floating Chat Button */}
+        {!showChat && order.status !== 'PENDING' && !['DELIVERED', 'CANCELLED', 'ITEM_NOT_FOUND'].includes(order.status) && (
           <button onClick={() => setShowChat(true)}
             className="fixed bottom-24 right-4 md:right-8 z-30 w-14 h-14 bg-brand text-white rounded-full shadow-xl shadow-brand/30 flex items-center justify-center hover:scale-105 active:scale-95 transition-all">
             <MessageCircle className="w-6 h-6" />
@@ -809,7 +896,9 @@ export default function OrderDetailPage() {
         )}
       </div>
 
-      {/* ─── MODALS ─── */}
+
+      {/* ─── ALL MODALS ───────────────────────────────────────────────────────── */}
+      
       <Modal open={showCancel} onClose={() => setShowCancel(false)} title="Cancel Order">
         <div className="space-y-4">
           <p className="text-sm text-gray-500">Are you sure? This action cannot be undone.</p>
@@ -817,7 +906,7 @@ export default function OrderDetailPage() {
           <div className="flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setShowCancel(false)}>Back</Button>
             <Button variant="danger" className="flex-1" loading={actionLoading === 'cancel'}
-              onClick={() => doAction('cancel', async () => { await ordersApi.cancel(id, cancelReason); setShowCancel(false) })}>
+              onClick={() => { updateStatus('CANCELLED', { cancelReason }); setShowCancel(false); }}>
               Cancel Order
             </Button>
           </div>
@@ -831,7 +920,7 @@ export default function OrderDetailPage() {
           <div className="flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setShowReject(false)}>Back</Button>
             <Button variant="danger" className="flex-1" loading={actionLoading === 'reject'}
-              onClick={() => doAction('reject', async () => { await ordersApi.rejectPhoto(id, rejectReason); setShowReject(false) })}>
+              onClick={() => { updateStatus('AT_SHOP', { rejectReason }); setShowReject(false); }}>
               Reject
             </Button>
           </div>
@@ -842,17 +931,13 @@ export default function OrderDetailPage() {
         <div className="space-y-4 text-center">
           {isClient ? (
             <>
-              {order?.deliveryOtp ? (
-                <>
-                  <p className="text-sm text-gray-500">Share only <strong>after</strong> receiving your item</p>
-                  <div className="bg-green-50 border-2 border-dashed border-green-300 rounded-2xl py-6 px-4">
-                    <span className="text-4xl font-extrabold tracking-[12px] text-green-600">{order.deliveryOtp}</span>
-                  </div>
-                  <p className="text-xs text-gray-400">Valid for 15 minutes</p>
-                </>
-              ) : (
-                <p className="text-sm text-gray-500">Check your email for the OTP</p>
-              )}
+              <p className="text-sm text-gray-500">Share only <strong>after</strong> receiving your item</p>
+              <div className="bg-green-50 border-2 border-dashed border-green-300 rounded-2xl py-6 px-4">
+                <span className="text-4xl font-extrabold tracking-[12px] text-green-600">
+                  {/* Fake OTP for testing without backend text triggers */}
+                  8421
+                </span>
+              </div>
             </>
           ) : (
             <>
@@ -872,28 +957,17 @@ export default function OrderDetailPage() {
         </div>
       </Modal>
 
-      <Modal open={showPhotoUpload} onClose={() => setShowPhotoUpload(false)} title="Upload Item Photos">
+      <Modal open={showPhotoUpload} onClose={() => setShowPhotoUpload(false)} title="Confirm Purchase">
         <div className="space-y-4">
-          <div className="border-2 border-dashed border-gray-200 rounded-2xl p-6 text-center relative">
-            <Camera className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-            <p className="text-sm text-gray-500 font-medium">Tap to take photos</p>
-            <p className="text-xs text-gray-400 mt-1">Show the item clearly</p>
-            <input type="file" accept="image/*" capture="environment" multiple className="absolute inset-0 opacity-0 cursor-pointer"
-              onChange={e => { const files = Array.from(e.target.files || []); setPhotoFiles(prev => [...prev, ...files]) }} />
+          
+          <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 text-center">
+            <p className="text-xs text-amber-700 font-medium">Photo uploads disabled in Free Tier Testing.</p>
           </div>
-          {photoFiles.length > 0 && (
-            <div className="grid grid-cols-3 gap-2">
-              {photoFiles.map((f, i) => (
-                <div key={i} className="relative">
-                  <img src={URL.createObjectURL(f)} alt="" className="rounded-xl w-full h-24 object-cover" />
-                  <button onClick={() => setPhotoFiles(prev => prev.filter((_, j) => j !== i))}
-                    className="absolute top-1 right-1 bg-red-500 text-white rounded-full w-5 h-5 text-xs flex items-center justify-center shadow-sm">×</button>
-                </div>
-              ))}
-            </div>
-          )}
+
           <Input label="Actual price paid (₹)" type="number" placeholder={`Expected: ₹${order?.expectedPrice || ''}`} value={actualPrice} onChange={e => setActualPrice(e.target.value)} />
-          <Button className="w-full" size="lg" onClick={handleItemPurchased} loading={actionLoading === 'purchased'} disabled={photoFiles.length === 0 || !actualPrice}>
+          
+          {/* Note that disabled ONLY checks for actualPrice now, not the photo length */}
+          <Button className="w-full" size="lg" onClick={handleItemPurchased} loading={actionLoading === 'purchased'} disabled={!actualPrice}>
             Send for Approval
           </Button>
         </div>
@@ -904,19 +978,6 @@ export default function OrderDetailPage() {
         <PhotoViewer urls={photoUrls} onClose={() => setShowPhotoViewer(false)} />
       )}
 
-      {/* Payment confirming overlay */}
-      {actionLoading === 'confirming' && (
-        <div className="fixed inset-0 z-50 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm flex flex-col items-center justify-center animate-fade-in">
-          <div className="w-20 h-20 bg-gradient-to-br from-brand to-brand-600 rounded-3xl flex items-center justify-center shadow-xl shadow-brand/30 mb-6 animate-pulse-soft">
-            <Loader2 className="w-10 h-10 text-white animate-spin" />
-          </div>
-          <p className="text-xl font-extrabold text-navy">Processing Payment</p>
-          <p className="text-sm text-gray-400 mt-1.5">Please wait a moment...</p>
-        </div>
-      )}
-
-      <StripePaymentModal open={paymentModal.open} onClose={() => setPaymentModal({ open: false, clientSecret: '', amount: 0 })}
-        clientSecret={paymentModal.clientSecret} amount={paymentModal.amount} onSuccess={handlePaymentSuccess} />
     </div>
   )
 }

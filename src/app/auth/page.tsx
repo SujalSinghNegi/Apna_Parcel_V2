@@ -3,30 +3,31 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
-import { api, getErrorMessage } from "@/lib/api";
-import { initSocket } from "@/lib/socket";
+import { auth, db } from "@/lib/firebase";
+import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { 
   Package, Mail, Lock, User as UserIcon, ChevronRight, 
-  ArrowLeft, Sparkles, GraduationCap, MapPin, Briefcase 
+  ArrowLeft, Sparkles, GraduationCap, MapPin, Briefcase, Store 
 } from "lucide-react";
 
-type Step = "email" | "otp" | "register";
+type Step = "credentials" | "register";
 
 // --- Framer Motion Variants ---
-const pageVariants:Variants = {
+const pageVariants: Variants = {
   initial: { opacity: 0, x: 20, filter: "blur(5px)" },
   animate: { opacity: 1, x: 0, filter: "blur(0px)", transition: { type: "spring", stiffness: 300, damping: 25 } },
   exit: { opacity: 0, x: -20, filter: "blur(5px)", transition: { duration: 0.2 } }
 };
 
-const staggerContainer:Variants = {
+const staggerContainer: Variants = {
   animate: { transition: { staggerChildren: 0.05 } }
 };
 
-const itemVariants:Variants = {
+const itemVariants: Variants = {
   initial: { opacity: 0, y: 10 },
   animate: { opacity: 1, y: 0, transition: { type: "spring", stiffness: 300, damping: 25 } }
 };
@@ -34,9 +35,12 @@ const itemVariants:Variants = {
 export default function AuthPage() {
   const router = useRouter();
   const { setAuth } = useAuthStore() as any;
-  const [step, setStep] = useState<Step>("email");
+  const [step, setStep] = useState<Step>("credentials");
+  const [isLogin, setIsLogin] = useState(true);
+  
+  // Form State
   const [email, setEmail] = useState("");
-  const [otp, setOtp] = useState("");
+  const [password, setPassword] = useState("");
   const [name, setName] = useState("");
   const [phone, setPhone] = useState("");
   const [userType, setUserType] = useState("STUDENT");
@@ -45,49 +49,104 @@ export default function AuthPage() {
   const [branch, setBranch] = useState("");
   const [loading, setLoading] = useState(false);
 
-  const sendOtp = async (e: React.FormEvent) => {
+  const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email) return;
-    setLoading(true);
-    try {
-      await api.post("/auth/send-otp", { email });
-      toast.success("OTP sent to your email!");
-      setStep("otp");
-    } catch (e) { toast.error(getErrorMessage(e)); } finally { setLoading(false); }
-  };
+    if (!email || !password) return;
+    
+    if (!isLogin) {
+      setStep("register");
+      return;
+    }
 
-  const verifyOtp = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (otp.length !== 6) { toast.error("Enter 6-digit OTP"); return; }
     setLoading(true);
     try {
-      const { data } = await api.post("/auth/verify-otp", { email, otp });
-      if (data.data.requiresRegistration) {
-        setStep("register");
+      // 1. Firebase Login
+      const userCred = await signInWithEmailAndPassword(auth, email, password);
+      const token = await userCred.user.getIdToken(); // Grab the real token!
+      
+      // 2. Fetch user profile from Firestore
+      const userDoc = await getDoc(doc(db, "users", userCred.user.uid));
+      
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        
+        // 🔥 CRITICAL FIX: Ensure BOTH id and uid are present for backwards compatibility
+        const safeUserPayload = {
+          uid: userCred.user.uid,
+          id: userCred.user.uid,
+          ...userData
+        };
+
+        // Pass the token so the app knows it's a valid session
+        setAuth(safeUserPayload, token, null);
+        toast.success("Welcome back, " + (userData.name || "User") + "!");
+        router.push(userData.isAdmin ? "/admin" : userData.role === "VENDOR" ? "/vendors/dashboard" : "/dashboard");
       } else {
-        const { accessToken, refreshToken, user } = data.data;
-        setAuth(user, accessToken, refreshToken);
-        initSocket(accessToken);
-        toast.success("Welcome back, " + user.name + "!");
-        router.push("/dashboard");
+        toast.error("Profile incomplete. Please register.");
+        setIsLogin(false);
+        setStep("register");
       }
-    } catch (e) { toast.error(getErrorMessage(e)); } finally { setLoading(false); }
+    } catch (error: any) {
+      if (error.code === 'auth/invalid-credential') {
+        toast.error("Incorrect email or password.");
+      } else {
+        toast.error(error.message);
+      }
+    } finally {
+      setLoading(false);
+    }
   };
 
   const register = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name) { toast.error("Enter your name"); return; }
     setLoading(true);
+    
     try {
-      const payload: any = { email, otp, name, phone, userType };
-      if (userType === "STUDENT") { payload.collegeName = collegeName; payload.yearOfStudy = yearOfStudy; payload.branch = branch; }
-      const { data } = await api.post("/auth/register", payload);
-      const { accessToken, refreshToken, user } = data.data;
-      setAuth(user, accessToken, refreshToken);
-      initSocket(accessToken);
-      toast.success("Welcome to ApnaParcel, " + user.name + "!");
+      // 1. Create Authentication Account
+      const userCred = await createUserWithEmailAndPassword(auth, email, password);
+      const uid = userCred.user.uid;
+      const token = await userCred.user.getIdToken();
+
+      // 2. Prepare Profile Data for Database (Added 'id' field to fix legacy crashes)
+      const payload: any = { 
+        uid, 
+        id: uid, 
+        email, 
+        name, 
+        phone, 
+        userType, 
+        role: "CLIENT", 
+        trustLevel: 1,
+        deliveriesCompleted: 0,
+        rating: 0,
+        createdAt: serverTimestamp()
+      };
+      
+      if (userType === "STUDENT") { 
+        payload.collegeName = collegeName; 
+        payload.yearOfStudy = yearOfStudy; 
+        payload.branch = branch; 
+      }
+
+      // 3. Save to Firestore Database
+      await setDoc(doc(db, "users", uid), payload);
+      
+      // 4. Update local memory
+      setAuth(payload, token, null);
+      toast.success("Welcome to ApnaParcel, " + name + "!");
       router.push("/dashboard");
-    } catch (e) { toast.error(getErrorMessage(e)); } finally { setLoading(false); }
+    } catch (error: any) {
+      if (error.code === 'auth/email-already-in-use') {
+        toast.error("Email is already registered. Please login.");
+        setStep("credentials");
+        setIsLogin(true);
+      } else {
+        toast.error(error.message);
+      }
+    } finally { 
+      setLoading(false); 
+    }
   };
 
   const userTypeOptions = [
@@ -96,7 +155,7 @@ export default function AuthPage() {
     { value: "STAFF_FACULTY", label: "Staff / Faculty", icon: Briefcase },
   ];
 
-  const stepIndex = step === "email" ? 0 : step === "otp" ? 1 : 2;
+  const stepIndex = step === "credentials" ? 0 : 1;
 
   return (
     <div className="min-h-screen relative flex items-center justify-center p-4 bg-gray-50 dark:bg-slate-950 overflow-hidden selection:bg-brand-200 selection:text-brand-900">
@@ -149,7 +208,7 @@ export default function AuthPage() {
           {/* Progress Indicator */}
           <div className="px-8 pt-8 pb-4">
             <div className="flex items-center gap-2">
-              {["Account", "Verify", "Profile"].map((label, i) => (
+              {["Account", "Profile"].map((label, i) => (
                 <div key={label} className="flex-1 relative">
                   <div className="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
                     <motion.div 
@@ -160,7 +219,7 @@ export default function AuthPage() {
                     />
                   </div>
                   <motion.p 
-                    animate={{ color: i <= stepIndex ? "#3b82f6" : "#94a3b8" }} // brand color vs slate-400
+                    animate={{ color: i <= stepIndex ? "#FF6B35" : "#94a3b8" }}
                     className="text-[10px] mt-2 font-bold uppercase tracking-wider text-center"
                   >
                     {label}
@@ -171,74 +230,58 @@ export default function AuthPage() {
           </div>
 
           <div className="px-8 pb-8 pt-2">
-            {/* Step Content with AnimatePresence for smooth swapping */}
             <AnimatePresence mode="wait">
-              {step === "email" && (
-                <motion.form key="email" variants={pageVariants} initial="initial" animate="animate" exit="exit" onSubmit={sendOtp} className="space-y-6">
+              {step === "credentials" && (
+                <motion.form key="credentials" variants={pageVariants} initial="initial" animate="animate" exit="exit" onSubmit={handleAuth} className="space-y-5">
                   <motion.div variants={staggerContainer}>
-                    <motion.h2 variants={itemVariants} className="text-2xl font-extrabold text-slate-900 dark:text-white">Welcome back! 👋</motion.h2>
-                    <motion.p variants={itemVariants} className="text-slate-500 dark:text-slate-400 text-sm mt-1.5">Enter your email to receive a secure code.</motion.p>
+                    <motion.h2 variants={itemVariants} className="text-2xl font-extrabold text-slate-900 dark:text-white">
+                      {isLogin ? "Welcome back! 👋" : "Create an account ✨"}
+                    </motion.h2>
+                    <motion.p variants={itemVariants} className="text-slate-500 dark:text-slate-400 text-sm mt-1.5">
+                      {isLogin ? "Enter your email and password to continue." : "Set up your credentials to get started."}
+                    </motion.p>
                   </motion.div>
+                  
                   <motion.div variants={itemVariants} className="space-y-1.5">
                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Email Address</label>
                     <div className="relative group">
                       <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-brand transition-colors" />
                       <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@college.edu"
-                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-slate-900 dark:text-white font-semibold placeholder:text-slate-400 placeholder:font-medium" required />
+                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-slate-900 dark:text-white font-semibold placeholder:text-slate-400" required />
                     </div>
                   </motion.div>
+
+                  <motion.div variants={itemVariants} className="space-y-1.5">
+                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Password</label>
+                    <div className="relative group">
+                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-brand transition-colors" />
+                      <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" minLength={6}
+                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-slate-900 dark:text-white font-semibold placeholder:text-slate-400" required />
+                    </div>
+                  </motion.div>
+
                   <motion.button variants={itemVariants} type="submit" disabled={loading}
                     className="w-full relative group overflow-hidden bg-brand hover:bg-brand-600 text-white font-bold py-4 px-6 rounded-2xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-brand/25 hover:shadow-brand/40 active:scale-[0.98]"
                   >
                     {loading ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      <><span className="relative z-10">Continue</span> <ChevronRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" /></>
+                      <><span className="relative z-10">{isLogin ? "Login" : "Continue to Profile"}</span> <ChevronRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" /></>
                     )}
                   </motion.button>
-                </motion.form>
-              )}
 
-              {step === "otp" && (
-                <motion.form key="otp" variants={pageVariants} initial="initial" animate="animate" exit="exit" onSubmit={verifyOtp} className="space-y-6">
-                  <motion.div variants={staggerContainer}>
-                    <button type="button" onClick={() => setStep("email")} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white mb-4 font-bold transition-colors">
-                      <ArrowLeft className="w-4 h-4" /> Back
+                  <motion.div variants={itemVariants} className="text-center pt-2">
+                    <button type="button" onClick={() => setIsLogin(!isLogin)} className="text-sm text-slate-500 hover:text-brand font-bold transition-colors">
+                      {isLogin ? "Don't have an account? Sign up" : "Already have an account? Login"}
                     </button>
-                    <motion.h2 variants={itemVariants} className="text-2xl font-extrabold text-slate-900 dark:text-white">Check your inbox 📧</motion.h2>
-                    <motion.p variants={itemVariants} className="text-slate-500 dark:text-slate-400 text-sm mt-1.5 leading-relaxed">
-                      We sent a 6-digit code to <br/>
-                      <span className="font-bold text-slate-900 dark:text-white bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md inline-block mt-1">{email}</span>
-                    </motion.p>
                   </motion.div>
-                  <motion.div variants={itemVariants} className="space-y-1.5">
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Verification Code</label>
-                    <div className="relative group">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-brand transition-colors" />
-                      <input type="text" value={otp} onChange={e => setOtp(e.target.value.replace(/\D/, "").slice(0, 6))}
-                        placeholder="• • • • • •" maxLength={6}
-                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-2xl tracking-[0.4em] font-mono text-center font-bold text-slate-900 dark:text-white placeholder:tracking-[0.5em] placeholder:text-slate-300 dark:placeholder:text-slate-600" required />
-                    </div>
-                  </motion.div>
-                  <motion.button variants={itemVariants} type="submit" disabled={loading || otp.length !== 6}
-                    className="w-full bg-brand hover:bg-brand-600 text-white font-bold py-4 px-6 rounded-2xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-brand/25 active:scale-[0.98]"
-                  >
-                    {loading ? (
-                      <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
-                    ) : (
-                      <>Verify & Continue <ChevronRight className="w-5 h-5" /></>
-                    )}
-                  </motion.button>
-                  <motion.button variants={itemVariants} type="button" onClick={sendOtp} className="w-full text-sm text-slate-500 hover:text-brand font-bold transition-colors py-1">
-                    Didn&apos;t get it? Resend OTP
-                  </motion.button>
                 </motion.form>
               )}
 
               {step === "register" && (
                 <motion.form key="register" variants={pageVariants} initial="initial" animate="animate" exit="exit" onSubmit={register} className="space-y-5">
                   <motion.div variants={staggerContainer}>
-                    <button type="button" onClick={() => setStep("otp")} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white mb-2 font-bold transition-colors">
+                    <button type="button" onClick={() => setStep("credentials")} className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-900 dark:hover:text-white mb-2 font-bold transition-colors">
                       <ArrowLeft className="w-4 h-4" /> Back
                     </button>
                     <motion.h2 variants={itemVariants} className="text-2xl font-extrabold text-slate-900 dark:text-white">Almost there! ✨</motion.h2>
@@ -321,9 +364,12 @@ export default function AuthPage() {
           </div>
 
           {/* Footer inside card */}
-          <div className="px-8 py-4 bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-700/50 text-center backdrop-blur-md">
+          <div className="px-8 py-4 bg-slate-50/50 dark:bg-slate-800/30 border-t border-slate-100 dark:border-slate-700/50 text-center backdrop-blur-md space-y-2">
+            <Link href="/vendor-login" className="flex items-center justify-center gap-2 text-xs font-bold text-brand hover:text-brand-600 transition-colors">
+              <Store className="w-3.5 h-3.5" /> Own a shop? Login or Register →
+            </Link>
             <p className="text-xs text-slate-500 dark:text-slate-400 font-semibold flex justify-center items-center gap-1.5">
-              🏔️ Serving the campus community of Dwarahat
+              🏔️ Serving the campus community
             </p>
           </div>
         </motion.div>

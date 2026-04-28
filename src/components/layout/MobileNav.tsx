@@ -1,11 +1,12 @@
 'use client'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
-import { Home, ShoppingBag, Bike, User, ClipboardList } from 'lucide-react'
+import { Home, ShoppingBag, Bike, User, ClipboardList, Store, Bell, Shield, Users, MessageSquare } from 'lucide-react'
+import { useAuthStore } from '@/store/auth'
 import { cn } from '@/lib/utils'
 import { motion } from 'framer-motion'
 
-const tabs = [
+const userTabs = [
   { href: '/dashboard', icon: Home, label: 'Home' },
   { href: '/orders/new', icon: ShoppingBag, label: 'Order' },
   { href: '/rider', icon: Bike, label: 'Rider' },
@@ -13,12 +14,30 @@ const tabs = [
   { href: '/profile', icon: User, label: 'Profile' },
 ]
 
+const vendorTabs = [
+  { href: '/vendors/dashboard', icon: Store, label: 'Shop' },
+  { href: '/vendors/requests', icon: Bell, label: 'Requests' },
+  { href: '/notifications', icon: Bell, label: 'Alerts' },
+  { href: '/profile', icon: User, label: 'Profile' },
+]
+
+const adminTabs = [
+  { href: '/admin', icon: Home, label: 'Dashboard' },
+  { href: '/admin/users', icon: Users, label: 'Users' },
+  { href: '/admin/orders', icon: ClipboardList, label: 'Orders' },
+  { href: '/admin/complaints', icon: MessageSquare, label: 'Complaints' },
+  { href: '/admin/vendors', icon: Store, label: 'Vendors' },
+]
+
 export const MobileNav = () => {
   const pathname = usePathname()
+  const { user } = useAuthStore()
+  const tabs = user?.isAdmin ? adminTabs : user?.role === 'VENDOR' ? vendorTabs : userTabs
   return (
     <nav className="fixed bottom-0 left-0 right-0 bg-white/95 dark:bg-gray-900/95 backdrop-blur-xl border-t border-gray-100 dark:border-gray-700/60 flex md:hidden z-40 px-1 pb-[env(safe-area-inset-bottom)]">
       {tabs.map(({ href, icon: Icon, label }) => {
-        const active = pathname === href || (href !== '/dashboard' && pathname.startsWith(href.split('?')[0]))
+        const hrefPath = href.split('?')[0]
+        const active = pathname === href || pathname === hrefPath || (href !== '/dashboard' && hrefPath !== '/orders' && pathname.startsWith(hrefPath))
         return (
           <Link key={href} href={href}
             className={cn(

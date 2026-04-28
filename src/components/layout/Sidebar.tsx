@@ -1,4 +1,6 @@
 'use client'
+import { auth } from '@/lib/firebase'
+import { signOut } from 'firebase/auth'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/auth'
@@ -13,7 +15,7 @@ import { motion, AnimatePresence } from 'framer-motion'
 import { useState, useEffect, useCallback } from 'react'
 import toast from 'react-hot-toast'
 import {
-  Home, ShoppingBag, Bike, Store, Shield, User, ClipboardList,
+  Home, ShoppingBag, Bike, Store, Shield, User, Users, ClipboardList,
   MessageSquare, Bell, LogOut, Package, ChevronLeft, ChevronRight,
   Star, Wallet, X, Menu, Sun, Moon,
 } from 'lucide-react'
@@ -49,12 +51,29 @@ export const Sidebar = () => {
   // Close mobile sidebar on route change & dismiss rider transition
   useEffect(() => { setMobileOpen(false); setRiderTransition(false) }, [pathname])
 
-  const handleLogout = async () => {
-    try { if (refreshToken) await authApi.logout(refreshToken) } catch {}
+ const handleLogout = async () => {
+  try {
+    // 1. Tell Firebase to kill the session
+    await signOut(auth)
+    
+    // 2. Clear the Zustand store memory
     clearAuth()
-    toast.success('Logged out')
-    window.location.href = '/auth'
+    
+    // 3. FORCE delete the physical file in the browser so it can't survive a reload
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('apnaparcel-auth')
+    }
+    
+    toast.success('Logged out successfully')
+    
+    // 4. Use Next.js router instead of hard reload
+    router.push('/')
+  } catch (error) {
+    console.error("Logout failed", error)
+    toast.error('Failed to log out')
   }
+}
+
 
   const handleRiderClick = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -68,7 +87,20 @@ export const Sidebar = () => {
 
   if (!user) return null
 
-  const mainLinks = [
+  const isVendor = user.role === 'VENDOR'
+  const isAdmin = user.isAdmin
+
+  const mainLinks = isAdmin ? [
+    { href: '/admin', label: 'Dashboard', icon: Home },
+    { href: '/admin/users', label: 'Users', icon: Users },
+    { href: '/admin/orders', label: 'Orders', icon: ClipboardList },
+    { href: '/admin/complaints', label: 'Complaints', icon: MessageSquare },
+    { href: '/admin/vendors', label: 'Vendors', icon: Store },
+  ] : isVendor ? [
+    { href: '/vendors/dashboard', label: 'My Shop', icon: Store },
+    { href: '/vendors/requests', label: 'Requests', icon: Bell, badge: unreadCount },
+    { href: '/notifications', label: 'Notifications', icon: Bell },
+  ] : [
     { href: '/dashboard', label: 'Home', icon: Home },
     { href: '/orders/new', label: 'New Order', icon: ShoppingBag },
     { href: '/orders?role=client', label: 'My Orders', icon: ClipboardList },
@@ -76,16 +108,19 @@ export const Sidebar = () => {
     { href: '/notifications', label: 'Notifications', icon: Bell, badge: unreadCount },
   ]
 
-  const bottomLinks = [
+  const bottomLinks = isAdmin ? [
     { href: '/profile', label: 'Profile', icon: User },
-    { href: '/complaints', label: 'Complaints', icon: MessageSquare },
-    ...(user.isAdmin ? [{ href: '/admin', label: 'Admin', icon: Shield }] : []),
+  ] : [
+    { href: '/profile', label: 'Profile', icon: User },
+    ...(!isVendor ? [{ href: '/complaints', label: 'Complaints', icon: MessageSquare }] : []),
   ]
 
   const sidebarWidth = collapsed ? 'w-[72px]' : 'w-[260px]'
 
   const NavItem = ({ href, icon: Icon, label, badge, onClick, highlight }: any) => {
-    const active = pathname === href || (href !== '/dashboard' && href && pathname.startsWith(href.split('?')[0]))
+    const hrefPath = href?.split('?')[0] || ''
+    const isExactOnly = hrefPath === '/dashboard' || hrefPath === '/admin' || hrefPath === '/orders'
+    const active = pathname === href || pathname === hrefPath || (!isExactOnly && hrefPath && pathname.startsWith(hrefPath))
     const Comp = onClick ? 'button' : Link
     const props = onClick ? { onClick } : { href }
     return (
@@ -189,7 +224,8 @@ export const Sidebar = () => {
         </AnimatePresence>
         {mainLinks.map(l => <NavItem key={l.href} {...l} />)}
 
-        {/* Rider mode — special button */}
+        {/* Rider mode — only for regular users (not admin, not vendor) */}
+        {!isVendor && !isAdmin && (
         <div className="pt-2">
           <AnimatePresence>
             {!collapsed && (
@@ -199,6 +235,7 @@ export const Sidebar = () => {
           </AnimatePresence>
           <NavItem icon={Bike} label="Rider Mode" onClick={handleRiderClick} highlight />
         </div>
+        )}
 
         <div className="pt-4">
           <AnimatePresence>
