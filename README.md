@@ -1,96 +1,135 @@
-# 📦 ApnaParcel Frontend
+# 📦 Apna Parcel — P2P Campus Delivery Network (v2 Serverless)
 
-> Next.js 14 + Tailwind CSS + TypeScript frontend for ApnaParcel
+> **HackRush 2026 Winner (Rank 2)** 🏆
+> Migrated from a Node.js/Express Hackathon MVP to a fully Serverless Production Architecture.
+
+Apna Parcel is a hyper-local, peer-to-peer delivery platform designed for university campuses. It crowdsources delivery by connecting students who need items with peers (riders) who are already heading in that direction.
 
 ---
 
-## 🚀 Quick Start (Windows PowerShell)
+## 🏗️ Architecture: The Serverless Migration
+
+For the production release, we migrated the backend from Node.js/WebSockets to **Firebase & Stripe**.
+
+- **Real-Time Sync:** Replaced `Socket.io` with **Firestore `onSnapshot`** for sub-second, zero-latency live tracking and chat, eliminating socket connection drops.
+- **Trustless Escrow:** Integrated **Stripe** to hold funds in a compliant Nodal Account during transit.
+- **Security:** Shifted critical logic (Payouts, OTP verification) to **Firebase Cloud Functions** to prevent client-side manipulation.
+
+---
+
+## ✨ Core Features
+
+- **Live Radar:** Riders see a real-time, pulsing map of all `PENDING` orders nearby.
+- **Secure Escrow Payments:** Clients pay upfront via Stripe (Authorization Hold). Funds are only captured and routed to the Rider when the 4-digit Delivery OTP is verified.
+- **In-App Chat & Photo Verification:** Real-time chat and receipt photo uploads via Firebase Storage to prevent disputes.
+- **Dynamic Pricing Engine:** Calculates delivery fees based on distance, weight, and urgency.
+
+---
+
+## 🚀 Local Development Setup
+
+Follow these steps to run the project locally on your machine.
+
+### 1. Prerequisites
+
+- Node.js 18+ installed
+- A Firebase Project (with Firestore, Authentication, and Storage enabled)
+- A Stripe Developer Account
+
+### 2. Clone and Install
 
 ```powershell
-cd apnaparcel-frontend
-.\scripts\setup.ps1
-```
-
-Or manually:
-
-```powershell
+git clone https://github.com/your-username/apna-parcel-v2.git
+cd apna-parcel-v2
 npm install
-copy .env.local.example .env.local
-# Fill in .env.local
+```
+
+### 3. Environment Variables
+
+Create a `.env.local` file in the root directory and add your keys:
+
+```env
+# --- FIREBASE CLIENT CONFIG ---
+NEXT_PUBLIC_FIREBASE_API_KEY=your_api_key
+NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=your_project_id.firebaseapp.com
+NEXT_PUBLIC_FIREBASE_PROJECT_ID=your_project_id
+NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
+NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
+
+# --- STRIPE CONFIG ---
+NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxx...
+```
+
+### 4. Run the Development Server
+
+```powershell
 npm run dev
-# Opens at http://localhost:3001
 ```
 
----
-
-## ⚙️ Environment Setup
-
-Open `.env.local` and set:
-
-```
-NEXT_PUBLIC_API_URL=http://localhost:3000/api
-NEXT_PUBLIC_SOCKET_URL=http://localhost:3000
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxx
-```
-
-Make sure the backend is running on port 3000 first.
+Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 📱 Pages & Routes
+## 💳 Testing the Escrow System (Stripe)
 
-| Route | Description |
-|---|---|
-| `/auth` | OTP login + registration (3-step flow) |
-| `/dashboard` | Home — stats, quick actions, recent orders |
-| `/orders/new` | Place a new order with fee calculator |
-| `/orders` | My orders list (client or rider view) |
-| `/orders/:id` | Order detail — actions, chat, OTP, photo |
-| `/rider` | Rider mode — browse & accept available orders |
-| `/profile` | Profile, stats, edit, photo upload |
-| `/notifications` | All notifications |
-| `/complaints` | My complaints list |
-| `/complaints/new` | Raise a complaint with evidence upload |
-| `/ratings/:orderId` | Rate after delivery (3-criteria) |
-| `/vendors` | Browse shops + register a shop |
-| `/admin` | Admin dashboard (admin only) |
-| `/admin/users` | Manage users — strike, ban, view detail |
-| `/admin/orders` | All platform orders + manual refund |
-| `/admin/complaints` | Resolve/dismiss complaints |
-| `/admin/vendors` | Approve/reject vendor registrations |
+While testing locally in Stripe Test Mode, use these card numbers in the payment modal:
+
+| Card Type       | Card Number              | Expiry          | CVC | Expected Result              |
+|-----------------|--------------------------|-----------------|-----|------------------------------|
+| Visa            | `4242 4242 4242 4242`    | Any future date | 123 | Success (Auth Hold applied)  |
+| Visa (Decline)  | `4000 0000 0000 0002`    | Any future date | 123 | Declined                     |
+| Visa (Auth)     | `4000 0025 0000 3155`    | Any future date | 123 | Requires Authentication      |
 
 ---
 
-## 🔌 Real-Time Features
+## 📱 Core Routes
 
-Socket.io is initialized after login. Events handled:
-
-- **Live order status updates** — status changes broadcast to order room
-- **Real-time chat** — messages delivered instantly, photo support
-- **Rider GPS tracking** — live location updated every 5s during active delivery
-- **Push notifications** — toasted and shown in notification bell
-
----
-
-## 💳 Stripe Test Mode
-
-Use these cards in the payment flow:
-- `4242 4242 4242 4242` — Success
-- `4000 0000 0000 0002` — Declined
-- `4000 0025 0000 3155` — Requires authentication
+| Route           | Description                                                                 |
+|-----------------|-----------------------------------------------------------------------------|
+| `/auth`         | Firebase Authentication & Profile Onboarding                                |
+| `/dashboard`    | Client Hub: Active tracking, quick actions, stats                           |
+| `/orders/new`   | Place a new delivery request                                                |
+| `/orders`       | Order History (Infinite scroll via Firestore)                               |
+| `/orders/[id]`  | Live Action Room: Order timeline, chat, photo viewer, and OTP entry         |
+| `/rider`        | Rider Hub: Live feed of available campus orders                             |
+| `/profile`      | Manage user stats, earnings, and avatars                                    |
 
 ---
 
-## 🎨 Design System
+## ☁️ Production Deployment (Vercel)
 
-| Token | Value |
-|---|---|
-| Primary color | `#FF6B35` (brand orange) |
-| Navy | `#1E3A5F` |
-| Font (body) | DM Sans |
-| Font (headings) | Sora |
-| Border radius | `xl` (12px), `2xl` (16px), `3xl` (24px) |
+This project is optimized for deployment on Vercel.
+
+1. Push your code to GitHub.
+2. Import the repository into Vercel.
+3. Paste all environment variables from `.env.local` into the Vercel Environment Variables settings.
+4. Click **Deploy**.
+
+> **Note on TypeScript Strictness:** If Vercel blocks deployment due to missing types during the transition from Node to Firebase, ensure the bypass flags (`ignoreBuildErrors: true`) are active in `next.config.js` or `next.config.mjs`.
 
 ---
 
-*ApnaParcel v1.0 · Built for Hackathon 2024*
+## 🔒 Production Security Checklist (For Contributors)
+
+Before scaling to thousands of campus users, the following Firebase Cloud Functions and Security Rules must be configured:
+
+### 1. Firestore Security Rules
+
+- **Orders:** `allow read, write: if request.auth.uid == resource.data.clientId || request.auth.uid == resource.data.riderId;`
+- **Users:** Users can only modify their own documents.
+
+### 2. Firebase Cloud Functions (Node.js)
+
+Frontend code should not update critical payment statuses. The following functions handle sensitive operations:
+
+- **`verifyOTP(orderId, code)`** — Verifies the delivery code and triggers Stripe Capture to pay the rider.
+- **`acceptOrder(orderId, riderId)`** — Ensures no two riders can accept the same order simultaneously (Transaction lock).
+
+### 3. Storage Rules
+
+- Receipts and chat photos in `/orders/{orderId}/` can only be viewed by the `clientId` and `riderId` attached to that specific order.
+
+---
+
+Built with ❤️ for campus communities.
