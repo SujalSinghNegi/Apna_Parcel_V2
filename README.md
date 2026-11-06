@@ -9,18 +9,18 @@ Apna Parcel is a hyper-local, peer-to-peer delivery platform designed for univer
 
 ## 🏗️ Architecture: The Serverless Migration
 
-For the production release, we migrated the backend from Node.js/WebSockets to **Firebase & Stripe**.
+The current showcase version is being migrated from the original Node.js/WebSockets backend to **Firebase**. Razorpay test mode is planned for the payment workflow; payment capture and verification are not implemented yet.
 
 - **Real-Time Sync:** Replaced `Socket.io` with **Firestore `onSnapshot`** for sub-second, zero-latency live tracking and chat, eliminating socket connection drops.
-- **Trustless Escrow:** Integrated **Stripe** to hold funds in a compliant Nodal Account during transit.
-- **Security:** Shifted critical logic (Payouts, OTP verification) to **Firebase Cloud Functions** to prevent client-side manipulation.
+- **Trustworthy payments:** Payment creation and webhook verification will run in trusted Firebase server code.
+- **Security:** Critical logic such as rider acceptance, payment verification, and OTP verification will move to Firebase Cloud Functions.
 
 ---
 
 ## ✨ Core Features
 
 - **Live Radar:** Riders see a real-time, pulsing map of all `PENDING` orders nearby.
-- **Secure Escrow Payments:** Clients pay upfront via Stripe (Authorization Hold). Funds are only captured and routed to the Rider when the 4-digit Delivery OTP is verified.
+- **Secure payments:** Clients will pay through Razorpay test mode, with server-side verification before an order is marked paid.
 - **In-App Chat & Photo Verification:** Real-time chat and receipt photo uploads via Firebase Storage to prevent disputes.
 - **Dynamic Pricing Engine:** Calculates delivery fees based on distance, weight, and urgency.
 
@@ -34,7 +34,7 @@ Follow these steps to run the project locally on your machine.
 
 - Node.js 18+ installed
 - A Firebase Project (with Firestore, Authentication, and Storage enabled)
-- A Stripe Developer Account
+- A Razorpay test account will be required when the payment milestone begins.
 
 ### 2. Clone and Install
 
@@ -57,8 +57,8 @@ NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET=your_project_id.appspot.com
 NEXT_PUBLIC_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
 NEXT_PUBLIC_FIREBASE_APP_ID=your_app_id
 
-# --- STRIPE CONFIG ---
-NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY=pk_test_xxxx...
+# --- RAZORPAY CONFIG (added during payment milestone) ---
+NEXT_PUBLIC_RAZORPAY_KEY_ID=your_razorpay_test_key_id
 ```
 
 ### 4. Run the Development Server
@@ -71,15 +71,9 @@ Open [http://localhost:3000](http://localhost:3000) in your browser.
 
 ---
 
-## 💳 Testing the Escrow System (Stripe)
+## 💳 Payment status
 
-While testing locally in Stripe Test Mode, use these card numbers in the payment modal:
-
-| Card Type       | Card Number              | Expiry          | CVC | Expected Result              |
-|-----------------|--------------------------|-----------------|-----|------------------------------|
-| Visa            | `4242 4242 4242 4242`    | Any future date | 123 | Success (Auth Hold applied)  |
-| Visa (Decline)  | `4000 0000 0000 0002`    | Any future date | 123 | Declined                     |
-| Visa (Auth)     | `4000 0025 0000 3155`    | Any future date | 123 | Requires Authentication      |
+The current payment UI is still a placeholder. Razorpay test-mode integration will be added after the customer, rider, vendor, chat, and upload flows are stable.
 
 ---
 
@@ -106,7 +100,7 @@ This project is optimized for deployment on Vercel.
 3. Paste all environment variables from `.env.local` into the Vercel Environment Variables settings.
 4. Click **Deploy**.
 
-> **Note on TypeScript Strictness:** If Vercel blocks deployment due to missing types during the transition from Node to Firebase, ensure the bypass flags (`ignoreBuildErrors: true`) are active in `next.config.js` or `next.config.mjs`.
+> **TypeScript strictness:** Production builds run TypeScript validation. Do not bypass type errors; fix the underlying type or data-contract issue.
 
 ---
 
@@ -123,7 +117,7 @@ Before scaling to thousands of campus users, the following Firebase Cloud Functi
 
 Frontend code should not update critical payment statuses. The following functions handle sensitive operations:
 
-- **`verifyOTP(orderId, code)`** — Verifies the delivery code and triggers Stripe Capture to pay the rider.
+- **`verifyOTP(orderId, code)`** — Will verify the delivery code in trusted server code before completing the order.
 - **`acceptOrder(orderId, riderId)`** — Ensures no two riders can accept the same order simultaneously (Transaction lock).
 
 ### 3. Storage Rules

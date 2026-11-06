@@ -1,5 +1,5 @@
 export type UserType = 'STUDENT' | 'LOCAL_PERSON' | 'STAFF_FACULTY';
-export type UserRole = 'USER' | 'VENDOR' | 'ADMIN';
+export type UserRole = 'USER' | 'CLIENT' | 'VENDOR' | 'ADMIN';
 export type TrustLevel = 'LEVEL_1' | 'LEVEL_2' | 'LEVEL_3' | 'LEVEL_4';
 export type OrderStatus = 'PENDING' | 'ACCEPTED' | 'PAID' | 'RIDER_LEFT' | 'AT_SHOP' | 'ITEM_PURCHASED' | 'PHOTO_APPROVED' | 'DELIVERING' | 'ARRIVED' | 'DELIVERED' | 'CANCELLED' | 'DISPUTED' | 'ITEM_NOT_FOUND';
 export type ShopMode = 'SINGLE_SHOP' | 'MULTIPLE_SHOPS' | 'ENTIRE_AREA' | 'URGENT';
@@ -19,6 +19,13 @@ export interface User {
   address?: string; occupation?: string; designation?: string; department?: string;
   createdAt: string;
 }
+
+export type AuthUser = Omit<User, 'createdAt' | 'trustLevel' | 'role'> & {
+  uid: string;
+  createdAt?: string;
+  role: UserRole;
+  trustLevel: TrustLevel | number;
+};
 
 export interface OrderUser {
   id: string; name: string; profilePhoto?: string;

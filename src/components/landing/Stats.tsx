@@ -104,11 +104,9 @@ const StatsDataStream = () => {
           viewport={{ once: true }}
         />
         <motion.circle r="3" fill="#34d399"
-          style={{ filter: "drop-shadow(0 0 6px #34d399)" }}
+          style={{ filter: "drop-shadow(0 0 6px #34d399)", offsetPath: "path('M -100,200 C 400,200 600,400 1500,400')" }}
           animate={{ offsetDistance: ["0%", "100%"], opacity: [0, 1, 0] }}
           transition={{ duration: 4, ease: "linear", repeat: Infinity }}
-          // @ts-ignore
-          style={{ offsetPath: "path('M -100,200 C 400,200 600,400 1500,400')" }}
         />
 
         {/* Data Line 2 */}
@@ -123,11 +121,9 @@ const StatsDataStream = () => {
           viewport={{ once: true }}
         />
         <motion.circle r="3" fill="#3b82f6"
-          style={{ filter: "drop-shadow(0 0 6px #3b82f6)" }}
+          style={{ filter: "drop-shadow(0 0 6px #3b82f6)", offsetPath: "path('M 1500,500 C 1000,500 800,100 -100,100')" }}
           animate={{ offsetDistance: ["0%", "100%"], opacity: [0, 1, 0] }}
           transition={{ duration: 5, ease: "linear", repeat: Infinity, delay: 1 }}
-          // @ts-ignore
-          style={{ offsetPath: "path('M 1500,500 C 1000,500 800,100 -100,100')" }}
         />
       </svg>
     </div>

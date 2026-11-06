@@ -1072,7 +1072,7 @@ export default function NewOrderPage() {
             ))}
           </div>
 
-          <p className="text-white/40 text-xs mt-6">You'll be redirected to your order shortly...</p>
+          <p className="text-white/40 text-xs mt-6">You&apos;ll be redirected to your order shortly...</p>
         </div>
       )}
     </div>

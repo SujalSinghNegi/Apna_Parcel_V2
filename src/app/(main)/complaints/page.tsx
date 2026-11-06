@@ -54,7 +54,7 @@ export default function ComplaintsPage() {
               <MessageSquareWarning className="w-8 h-8 text-gray-300" />
             </div>
             <p className="font-bold text-gray-400 text-lg">No complaints raised</p>
-            <p className="text-sm text-gray-400 mt-1">Had an issue with an order? We're here to help.</p>
+            <p className="text-sm text-gray-400 mt-1">Had an issue with an order? We&apos;re here to help.</p>
             <Link href="/complaints/new"><Button className="mt-4" size="sm"><Plus className="w-3.5 h-3.5" /> Raise Complaint</Button></Link>
           </CardContent>
         </Card>

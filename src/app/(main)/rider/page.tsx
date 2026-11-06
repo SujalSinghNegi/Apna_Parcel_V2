@@ -310,7 +310,7 @@ export default function RiderPage() {
           <div className="space-y-5">
             <div className="bg-gradient-to-br from-gray-50 to-stone-50 dark:from-gray-800 dark:to-gray-900 rounded-2xl p-5">
               <h3 className="font-extrabold text-navy dark:text-white text-lg">{showAccept.itemName}</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Client: <span className="font-semibold text-navy dark:text-white">{showAccept.clientName}</span></p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Client: <span className="font-semibold text-navy dark:text-white">{showAccept.client?.name || 'Customer'}</span></p>
               <div className="grid grid-cols-2 gap-3 mt-4">
                 <div className="bg-white dark:bg-gray-800 rounded-xl p-3 text-center border border-gray-100 dark:border-gray-700">
                   <p className="text-[11px] text-gray-400 font-medium">You spend</p>
