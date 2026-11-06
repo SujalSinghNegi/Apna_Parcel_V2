@@ -69,6 +69,45 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
+### 5. Run Firebase locally (emulator-first workflow)
+
+The emulator workflow keeps authentication, Firestore, and Storage changes away
+from the shared Firebase project.
+
+1. Install the Firebase CLI if it is not already installed:
+
+   ```powershell
+   npm install -g firebase-tools
+   firebase login
+   ```
+
+2. Copy `.env.example` to `.env.local` and set the Firebase client values.
+3. Set this flag in `.env.local`:
+
+   ```env
+   NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true
+   ```
+
+4. In one terminal, start the emulators:
+
+   ```powershell
+   npm run firebase:emulators
+   ```
+
+5. In a second terminal, start Next.js:
+
+   ```powershell
+   npm run dev
+   ```
+
+Open the Emulator UI at [http://127.0.0.1:4000](http://127.0.0.1:4000).
+The local endpoints are Auth `9099`, Firestore `8080`, and Storage `9199`.
+To persist emulator data between runs, use `npm run firebase:emulators:data`.
+
+When testing the deployed or shared Firebase project, set
+`NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false` and restart Next.js. Never commit
+`.env.local` or emulator export data.
+
 ---
 
 ## 💳 Payment status
