@@ -5,9 +5,10 @@ import { auth, db } from "@/lib/firebase";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
 import { useAuthStore } from "@/store/auth";
+import { normalizeAuthUser } from "@/lib/auth-profile";
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const { setAuth, clearAuth, setLoading } = useAuthStore() as any;
+  const { setAuth, clearAuth, setLoading } = useAuthStore();
 
   useEffect(() => {
     setLoading(true);
@@ -20,7 +21,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
           
           if (userDoc.exists()) {
-            const userData = { uid: firebaseUser.uid, ...userDoc.data() };
+            const userData = normalizeAuthUser(firebaseUser.uid, userDoc.data());
             const token = await firebaseUser.getIdToken();
             
             // 2. Save it to your global Zustand store

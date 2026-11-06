@@ -1,13 +1,14 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
+import { AuthUser } from "@/types";
 
 interface AuthState {
-  user: any | null; // Changed to 'any' to accept Firebase user objects safely
+  user: AuthUser | null;
   accessToken: string | null;
   refreshToken: string | null;
   isLoading: boolean;
-  setAuth: (user: any, accessToken: string | null, refreshToken: string | null) => void;
-  setUser: (user: any) => void;
+  setAuth: (user: AuthUser, accessToken: string | null, refreshToken: string | null) => void;
+  setUser: (user: AuthUser) => void;
   clearAuth: () => void;
   setLoading: (v: boolean) => void;
 }
