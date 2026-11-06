@@ -1,17 +1,30 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuthStore } from "@/store/auth";
 import { auth, db } from "@/lib/firebase";
-import { signInWithEmailAndPassword, createUserWithEmailAndPassword } from "firebase/auth";
+import {
+  GoogleAuthProvider,
+  RecaptchaVerifier,
+  ConfirmationResult,
+  createUserWithEmailAndPassword,
+  isSignInWithEmailLink,
+  sendSignInLinkToEmail,
+  signInWithEmailAndPassword,
+  signInWithEmailLink,
+  signInWithPopup,
+  signInWithPhoneNumber,
+} from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
+import { normalizeAuthUser } from "@/lib/auth-profile";
 import toast from "react-hot-toast";
 import Link from "next/link";
 import { motion, AnimatePresence, Variants } from "framer-motion";
 import { 
-  Package, Mail, Lock, User as UserIcon, ChevronRight, 
-  ArrowLeft, Sparkles, GraduationCap, MapPin, Briefcase, Store 
+  Package, Mail, Lock, User as UserIcon, ChevronRight,
+  ArrowLeft, Sparkles, GraduationCap, MapPin, Briefcase, Store,
+  Smartphone, Link2, ShieldCheck
 } from "lucide-react";
 
 type Step = "credentials" | "register";
@@ -34,7 +47,7 @@ const itemVariants: Variants = {
 
 export default function AuthPage() {
   const router = useRouter();
-  const { setAuth } = useAuthStore() as any;
+  const { setAuth } = useAuthStore();
   const [step, setStep] = useState<Step>("credentials");
   const [isLogin, setIsLogin] = useState(true);
   
@@ -48,9 +61,165 @@ export default function AuthPage() {
   const [yearOfStudy, setYearOfStudy] = useState("1ST");
   const [branch, setBranch] = useState("");
   const [loading, setLoading] = useState(false);
+  const [authMethod, setAuthMethod] = useState<"password" | "phone" | "emailLink">("password");
+  const [countryCode, setCountryCode] = useState("+91");
+  const [customCountryCode, setCustomCountryCode] = useState("");
+  const [phoneCode, setPhoneCode] = useState("");
+  const [phoneConfirmation, setPhoneConfirmation] = useState<ConfirmationResult | null>(null);
+  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
+
+  const finishProviderSignIn = useCallback(async (firebaseUser: {
+    uid: string;
+    email: string | null;
+    phoneNumber: string | null;
+    displayName: string | null;
+  }) => {
+    const userRef = doc(db, "users", firebaseUser.uid);
+    const existingProfile = await getDoc(userRef);
+    let profile = existingProfile.exists() ? existingProfile.data() : null;
+
+    if (!profile) {
+      profile = {
+        uid: firebaseUser.uid,
+        id: firebaseUser.uid,
+        email: firebaseUser.email || "",
+        name: firebaseUser.displayName || firebaseUser.phoneNumber || "User",
+        phone: firebaseUser.phoneNumber || "",
+        userType: "STUDENT",
+        role: "CLIENT",
+        trustLevel: 1,
+        deliveriesCompleted: 0,
+        rating: 0,
+        createdAt: serverTimestamp(),
+      };
+      await setDoc(userRef, profile);
+    }
+
+    const userData = normalizeAuthUser(firebaseUser.uid, profile);
+    const token = await auth.currentUser?.getIdToken();
+    if (!token) throw new Error("Authentication session could not be established.");
+
+    setAuth(userData, token, null);
+    toast.success(`Welcome, ${userData.name}!`);
+    router.push(userData.isAdmin ? "/admin" : userData.role === "VENDOR" ? "/vendors/dashboard" : "/dashboard");
+  }, [router, setAuth]);
+
+  useEffect(() => {
+    if (!isSignInWithEmailLink(auth, window.location.href)) return;
+
+    const storedEmail = window.localStorage.getItem("apnaparcel-email-link");
+    const emailForSignIn = storedEmail || window.prompt("Confirm your email address");
+    if (!emailForSignIn) return;
+
+    setLoading(true);
+    signInWithEmailLink(auth, emailForSignIn, window.location.href)
+      .then(({ user }) => finishProviderSignIn(user))
+      .catch((error: unknown) => toast.error(error instanceof Error ? error.message : "Email link sign-in failed."))
+      .finally(() => {
+        window.localStorage.removeItem("apnaparcel-email-link");
+        setLoading(false);
+      });
+  }, [finishProviderSignIn]);
+
+  useEffect(() => () => {
+    recaptchaRef.current?.clear();
+  }, []);
+
+  const handleGoogleSignIn = async () => {
+    setLoading(true);
+    try {
+      const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
+      await finishProviderSignIn(user);
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Google sign-in failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEmailLink = async () => {
+    if (!email) {
+      toast.error("Enter your email address first.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      await sendSignInLinkToEmail(auth, email, {
+        url: `${window.location.origin}/auth`,
+        handleCodeInApp: true,
+      });
+      window.localStorage.setItem("apnaparcel-email-link", email);
+      toast.success("Sign-in link sent. Check your email.");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Could not send sign-in link.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePhoneCode = async () => {
+    if (!phoneCode || !phoneConfirmation) {
+      toast.error("Enter the verification code.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const { user } = await phoneConfirmation.confirm(phoneCode);
+      await finishProviderSignIn(user);
+      setPhoneConfirmation(null);
+      setPhoneCode("");
+    } catch (error: unknown) {
+      toast.error(error instanceof Error ? error.message : "Phone verification failed.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePhoneSignIn = async () => {
+    const normalizedPhone = phone.replace(/\D/g, "");
+    const normalizedCountryCode = countryCode === "custom"
+      ? `+${customCountryCode.replace(/\D/g, "")}`
+      : countryCode;
+    if (countryCode === "custom" && normalizedCountryCode.length < 2) {
+      toast.error("Enter a valid country code, for example +91.");
+      return;
+    }
+    if (!normalizedPhone) {
+      toast.error("Enter a phone number with country code.");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      if (!recaptchaRef.current) {
+        recaptchaRef.current = new RecaptchaVerifier(auth, "phone-recaptcha", {
+          size: "invisible",
+        });
+      }
+      const confirmation = await signInWithPhoneNumber(auth, `${normalizedCountryCode}${normalizedPhone}`, recaptchaRef.current);
+      setPhoneConfirmation(confirmation);
+      toast.success("Verification code sent.");
+    } catch (error: unknown) {
+      recaptchaRef.current?.clear();
+      recaptchaRef.current = null;
+      toast.error(error instanceof Error ? error.message : "Could not send verification code.");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (authMethod === "phone") {
+      await handlePhoneSignIn();
+      return;
+    }
+    if (authMethod === "emailLink") {
+      await handleEmailLink();
+      return;
+    }
     if (!email || !password) return;
     
     if (!isLogin) {
@@ -68,17 +237,11 @@ export default function AuthPage() {
       const userDoc = await getDoc(doc(db, "users", userCred.user.uid));
       
       if (userDoc.exists()) {
-        const userData = userDoc.data();
+        const userData = normalizeAuthUser(userCred.user.uid, userDoc.data());
         
         // 🔥 CRITICAL FIX: Ensure BOTH id and uid are present for backwards compatibility
-        const safeUserPayload = {
-          uid: userCred.user.uid,
-          id: userCred.user.uid,
-          ...userData
-        };
-
         // Pass the token so the app knows it's a valid session
-        setAuth(safeUserPayload, token, null);
+        setAuth(userData, token, null);
         toast.success("Welcome back, " + (userData.name || "User") + "!");
         router.push(userData.isAdmin ? "/admin" : userData.role === "VENDOR" ? "/vendors/dashboard" : "/dashboard");
       } else {
@@ -109,31 +272,32 @@ export default function AuthPage() {
       const token = await userCred.user.getIdToken();
 
       // 2. Prepare Profile Data for Database (Added 'id' field to fix legacy crashes)
-      const payload: any = { 
+      const payload = {
         uid, 
         id: uid, 
         email, 
         name, 
         phone, 
         userType, 
-        role: "CLIENT", 
+        role: "CLIENT" as const,
         trustLevel: 1,
         deliveriesCompleted: 0,
         rating: 0,
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
       };
       
       if (userType === "STUDENT") { 
-        payload.collegeName = collegeName; 
-        payload.yearOfStudy = yearOfStudy; 
-        payload.branch = branch; 
+        Object.assign(payload, { collegeName, yearOfStudy, branch });
       }
 
       // 3. Save to Firestore Database
       await setDoc(doc(db, "users", uid), payload);
       
       // 4. Update local memory
-      setAuth(payload, token, null);
+      setAuth(normalizeAuthUser(uid, {
+        ...payload,
+        createdAt: new Date().toISOString(),
+      }), token, null);
       toast.success("Welcome to ApnaParcel, " + name + "!");
       router.push("/dashboard");
     } catch (error: any) {
@@ -242,23 +406,97 @@ export default function AuthPage() {
                     </motion.p>
                   </motion.div>
                   
-                  <motion.div variants={itemVariants} className="space-y-1.5">
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Email Address</label>
-                    <div className="relative group">
-                      <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-brand transition-colors" />
-                      <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@college.edu"
-                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-slate-900 dark:text-white font-semibold placeholder:text-slate-400" required />
+                  <motion.div variants={itemVariants} className="space-y-3">
+                    <div>
+                      <p className="text-sm font-extrabold text-slate-800 dark:text-slate-200">Choose how to continue</p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Select one login method below.</p>
+                    </div>
+                    <div className="space-y-2">
+                      <button type="button" onClick={handleGoogleSignIn} disabled={loading}
+                        className="flex w-full items-center gap-3 rounded-2xl border-2 border-slate-200 dark:border-slate-700 px-4 py-3 text-left transition-all hover:border-brand hover:bg-brand/5 disabled:opacity-50">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white text-lg font-extrabold shadow-sm">G</span>
+                        <span><span className="block text-sm font-extrabold text-slate-800 dark:text-slate-200">Continue with Google</span><span className="block text-[11px] text-slate-400">Use your Google account</span></span>
+                      </button>
+                      <button type="button" onClick={() => setAuthMethod("phone")}
+                        className={`flex w-full items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-all ${authMethod === "phone" ? "border-brand bg-brand/5 ring-2 ring-brand/10" : "border-slate-200 dark:border-slate-700 hover:border-brand"}`}>
+                        <Smartphone className={`h-5 w-5 ${authMethod === "phone" ? "text-brand" : "text-slate-400"}`} />
+                        <span><span className="block text-sm font-extrabold text-slate-800 dark:text-slate-200">Continue with phone</span><span className="block text-[11px] text-slate-400">Verify with a one-time code</span></span>
+                      </button>
+                      <button type="button" onClick={() => setAuthMethod("password")}
+                        className={`flex w-full items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-all ${authMethod === "password" ? "border-brand bg-brand/5 ring-2 ring-brand/10" : "border-slate-200 dark:border-slate-700 hover:border-brand"}`}>
+                        <Lock className={`h-5 w-5 ${authMethod === "password" ? "text-brand" : "text-slate-400"}`} />
+                        <span><span className="block text-sm font-extrabold text-slate-800 dark:text-slate-200">Email &amp; password</span><span className="block text-[11px] text-slate-400">Use your registered password</span></span>
+                      </button>
+                      <button type="button" onClick={() => { setAuthMethod("emailLink"); setIsLogin(true) }}
+                        className={`flex w-full items-center gap-3 rounded-2xl border-2 px-4 py-3 text-left transition-all ${authMethod === "emailLink" ? "border-brand bg-brand/5 ring-2 ring-brand/10" : "border-slate-200 dark:border-slate-700 hover:border-brand"}`}>
+                        <Link2 className={`h-5 w-5 ${authMethod === "emailLink" ? "text-brand" : "text-slate-400"}`} />
+                        <span><span className="block text-sm font-extrabold text-slate-800 dark:text-slate-200">Email link</span><span className="block text-[11px] text-slate-400">Get a passwordless sign-in link</span></span>
+                      </button>
                     </div>
                   </motion.div>
 
-                  <motion.div variants={itemVariants} className="space-y-1.5">
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Password</label>
-                    <div className="relative group">
-                      <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-brand transition-colors" />
-                      <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" minLength={6}
-                        className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-slate-900 dark:text-white font-semibold placeholder:text-slate-400" required />
+                  {authMethod === "password" || authMethod === "emailLink" ? <motion.div variants={itemVariants} className="space-y-3">
+                    <div className="space-y-1.5">
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Email address</label>
+                      <div className="relative group">
+                        <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-brand transition-colors" />
+                        <input type="email" value={email} onChange={e => setEmail(e.target.value)} placeholder="you@college.edu"
+                          className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-slate-900 dark:text-white font-semibold placeholder:text-slate-400" required />
+                      </div>
                     </div>
-                  </motion.div>
+                    {authMethod === "password" && <div className="space-y-1.5">
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Password</label>
+                      <div className="relative group">
+                        <Lock className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-slate-400 group-focus-within:text-brand transition-colors" />
+                        <input type="password" value={password} onChange={e => setPassword(e.target.value)} placeholder="••••••••" minLength={6}
+                          className="w-full pl-12 pr-4 py-3.5 bg-slate-50 dark:bg-slate-800/50 rounded-2xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand focus:ring-4 focus:ring-brand/10 transition-all text-slate-900 dark:text-white font-semibold placeholder:text-slate-400" required />
+                      </div>
+                    </div>}
+                      {authMethod === "emailLink" && (
+                        <div className="rounded-xl bg-amber-50 px-3 py-2.5 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-300">
+                          Check your inbox and spam folder for the sign-in link.
+                        </div>
+                      )}
+                  </motion.div> : <motion.div variants={itemVariants} className="space-y-3">
+                    <div className="space-y-1.5">
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Phone number</label>
+                      <div className="grid grid-cols-[110px_1fr] gap-2">
+                        <select value={countryCode} onChange={e => setCountryCode(e.target.value)}
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-3 py-3.5 font-semibold text-slate-900 focus:border-brand focus:outline-none dark:border-slate-700 dark:bg-slate-800/50 dark:text-white">
+                          <option value="+91">+91 India</option>
+                          <option value="+1">+1 USA/Canada</option>
+                          <option value="+44">+44 UK</option>
+                          <option value="custom">Other</option>
+                        </select>
+                        <input type="tel" value={phone} onChange={e => setPhone(e.target.value.replace(/\D/g, ""))} placeholder="9876543210"
+                          className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 font-semibold text-slate-900 focus:border-brand focus:outline-none dark:border-slate-700 dark:bg-slate-800/50 dark:text-white" />
+                      </div>
+                      {countryCode === "custom" && (
+                        <div className="mt-2">
+                          <label className="mb-1 block text-xs font-bold text-slate-500 dark:text-slate-400">Custom country code</label>
+                          <input type="tel" inputMode="numeric" value={customCountryCode}
+                            onChange={e => setCustomCountryCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                            placeholder="91"
+                            className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3.5 font-semibold text-slate-900 focus:border-brand focus:outline-none dark:border-slate-700 dark:bg-slate-800/50 dark:text-white" />
+                          <p className="mt-1 text-[11px] text-slate-400">Enter digits only; the + sign is added automatically.</p>
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex items-start gap-2 rounded-xl bg-blue-50 px-3 py-2.5 text-xs text-blue-700 dark:bg-blue-950/30 dark:text-blue-300">
+                      <ShieldCheck className="h-4 w-4 shrink-0 mt-0.5" />
+                      <span>We&apos;ll send a one-time verification code to your phone.</span>
+                    </div>
+                  </motion.div>}
+
+                  {phoneConfirmation && authMethod === "phone" && (
+                    <motion.div variants={itemVariants} className="space-y-2 rounded-2xl border border-brand/20 bg-brand/5 p-3">
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">Enter verification code</label>
+                      <input inputMode="numeric" value={phoneCode} onChange={e => setPhoneCode(e.target.value)}
+                        placeholder="6-digit code" className="w-full px-4 py-3.5 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 focus:outline-none focus:border-brand text-slate-900 dark:text-white font-semibold" />
+                      <button type="button" onClick={handlePhoneCode} disabled={loading}
+                        className="w-full rounded-xl bg-slate-900 text-white py-3 font-bold disabled:opacity-50">Verify phone number</button>
+                    </motion.div>
+                  )}
 
                   <motion.button variants={itemVariants} type="submit" disabled={loading}
                     className="w-full relative group overflow-hidden bg-brand hover:bg-brand-600 text-white font-bold py-4 px-6 rounded-2xl transition-all disabled:opacity-50 flex items-center justify-center gap-2 shadow-lg shadow-brand/25 hover:shadow-brand/40 active:scale-[0.98]"
@@ -266,7 +504,7 @@ export default function AuthPage() {
                     {loading ? (
                       <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin" />
                     ) : (
-                      <><span className="relative z-10">{isLogin ? "Login" : "Continue to Profile"}</span> <ChevronRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" /></>
+                      <><span className="relative z-10">{authMethod === "phone" ? "Send verification code" : authMethod === "emailLink" ? "Send email link" : (isLogin ? "Login with email" : "Continue to Profile")}</span> <ChevronRight className="w-5 h-5 relative z-10 group-hover:translate-x-1 transition-transform" /></>
                     )}
                   </motion.button>
 
@@ -275,6 +513,7 @@ export default function AuthPage() {
                       {isLogin ? "Don't have an account? Sign up" : "Already have an account? Login"}
                     </button>
                   </motion.div>
+                  <div id="phone-recaptcha" />
                 </motion.form>
               )}
 
