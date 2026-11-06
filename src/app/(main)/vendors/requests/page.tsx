@@ -94,7 +94,7 @@ export default function VendorRequestsPage() {
           <CardContent className="py-16 text-center">
             <Bell className="w-10 h-10 text-gray-300 mx-auto mb-3" />
             <p className="font-bold text-gray-400 text-lg">No requests yet</p>
-            <p className="text-sm text-gray-400 mt-1">When customers request items, they'll show up here</p>
+            <p className="text-sm text-gray-400 mt-1">When customers request items, they&apos;ll show up here</p>
           </CardContent>
         </Card>
       ) : (

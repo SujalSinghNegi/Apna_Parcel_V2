@@ -5,9 +5,16 @@ import { signOut } from 'firebase/auth'
 // ── Migration Helper ────────────────────────────────────────────────────────
 // This prevents your app from crashing when you click on unmigrated pages.
 // It acts like a fake backend that just returns empty data.
-const stub = (name: string) => async (...args: any[]) => {
+type StubResponse = {
+  data: {
+    data: any
+    meta?: { total: number; page: number; limit: number; pages: number }
+  }
+}
+
+const stub = (name: string) => async (..._args: unknown[]): Promise<StubResponse> => {
   console.warn(`🚧 [Firebase Migration]: ${name} is not wired up yet!`);
-  return { data: { data: [] } }; // Fake response to keep the UI happy
+  return { data: { data: [] } };
 }
 
 // Dummy axios replacement so imports don't break
@@ -26,7 +33,7 @@ export const authApi = {
   refresh: stub('auth.refresh'),
   
   // The ultimate kill switch
-  logout: async () => {
+  logout: async (_refreshToken?: string) => {
     await signOut(auth);
     useAuthStore.getState().clearAuth(); // This wipes Zustand's memory instantly
   },

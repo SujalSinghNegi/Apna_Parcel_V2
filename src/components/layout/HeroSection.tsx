@@ -69,13 +69,11 @@ const AnimatedThreads = () => {
         <motion.circle
           r="4"
           fill="#3b82f6"
-          style={{ filter: "drop-shadow(0 0 10px #3b82f6)" }}
+          style={{ filter: "drop-shadow(0 0 10px #3b82f6)", offsetPath: "path('M -100,200 C 300,100 400,600 900,400 C 1100,300 1300,500 1300,500')" }}
           animate={{
             offsetDistance: ["0%", "100%"]
           }}
           transition={{ duration: 3, ease: "easeInOut", repeat: Infinity, repeatDelay: 1 }}
-          // @ts-ignore
-          style={{ offsetPath: "path('M -100,200 C 300,100 400,600 900,400 C 1100,300 1300,500 1300,500')" }}
         />
       </svg>
       

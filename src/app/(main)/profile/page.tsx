@@ -8,7 +8,7 @@ import { Card, CardContent, CardHeader } from '@/components/ui/Card'
 import { TrustBadge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
 import { fmt, TRUST_COLORS } from '@/lib/utils'
-import { TRUST_LEVEL_NAMES, TRUST_LEVEL_LIMITS } from '@/types'
+import { TRUST_LEVEL_NAMES, TRUST_LEVEL_LIMITS, User } from '@/types'
 import { Star, Camera, Shield, TrendingUp, Award, AlertTriangle } from 'lucide-react'
 import toast from 'react-hot-toast'
 
@@ -65,10 +65,11 @@ export default function ProfilePage() {
       </div>
     </div>
   )
-  const tc = TRUST_COLORS[user.trustLevel]
-  const limit = TRUST_LEVEL_LIMITS[user.trustLevel]
-  const nextLevel = user.trustLevel === 'LEVEL_1' ? 5 : user.trustLevel === 'LEVEL_2' ? 15 : user.trustLevel === 'LEVEL_3' ? 30 : null
-  const progress = nextLevel ? Math.min((user.completedOrders / nextLevel) * 100, 100) : 100
+  const profileUser = user as User
+  const tc = TRUST_COLORS[profileUser.trustLevel]
+  const limit = TRUST_LEVEL_LIMITS[profileUser.trustLevel]
+  const nextLevel = profileUser.trustLevel === 'LEVEL_1' ? 5 : profileUser.trustLevel === 'LEVEL_2' ? 15 : profileUser.trustLevel === 'LEVEL_3' ? 30 : null
+  const progress = nextLevel ? Math.min((profileUser.completedOrders / nextLevel) * 100, 100) : 100
 
   return (
     <div className="page-container max-w-2xl mx-auto space-y-5 animate-fade-in">
@@ -108,7 +109,7 @@ export default function ProfilePage() {
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <Award className="w-4 h-4 text-brand" />
-              <span className="font-extrabold text-navy text-sm">{TRUST_LEVEL_NAMES[user.trustLevel]}</span>
+              <span className="font-extrabold text-navy text-sm">{TRUST_LEVEL_NAMES[profileUser.trustLevel]}</span>
             </div>
             <span className="text-xs text-gray-400 font-medium">Max order: {limit === Infinity ? 'Unlimited' : `₹${limit}`}</span>
           </div>
