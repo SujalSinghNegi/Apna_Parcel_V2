@@ -451,7 +451,7 @@ Fix: Replace with direct Firestore query (like dashboard does)
 
 #### Priority 2: Fix Profile Page
 ```
-File: src/app/(main)/profile/page.tsx  
+File: src/app/(main)/profile/page.tsx
 Problem: Uses usersApi.stats() and usersApi.updateMe()
 Fix: Read stats from user doc, use updateDoc() for profile edits
 ```
@@ -518,7 +518,7 @@ service cloud.firestore {
     match /orders/{orderId} {
       allow read: if request.auth != null;
       allow create: if request.auth != null;
-      allow update: if request.auth.uid == resource.data.clientId 
+      allow update: if request.auth.uid == resource.data.clientId
                      || request.auth.uid == resource.data.riderId;
     }
   }
