@@ -69,7 +69,21 @@ npm run dev
 
 Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-### 5. Run Firebase locally (emulator-first workflow)
+### 5. Enable Google sign-in
+
+In Firebase Console:
+
+1. Open **Authentication → Sign-in method → Google** and enable it.
+2. Under **Authentication → Settings → Authorized domains**, add `localhost` and
+   the production Vercel hostname.
+3. Confirm the Vercel project has all `NEXT_PUBLIC_FIREBASE_*` variables configured
+   for the same Firebase project, with `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false`.
+
+The local emulator flag in `.env.local` is intended for local email, phone, and
+test-user flows. Google OAuth must use the live Firebase Auth project, because the
+OAuth provider and authorized domains are configured in Firebase Console.
+
+### 6. Run Firebase locally (emulator-first workflow)
 
 The emulator workflow keeps authentication, Firestore, and Storage changes away
 from the shared Firebase project.

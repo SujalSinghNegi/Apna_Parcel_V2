@@ -10,10 +10,12 @@ import {
   ConfirmationResult,
   createUserWithEmailAndPassword,
   isSignInWithEmailLink,
+  getRedirectResult,
   sendSignInLinkToEmail,
   signInWithEmailAndPassword,
   signInWithEmailLink,
   signInWithPopup,
+  signInWithRedirect,
   signInWithPhoneNumber,
 } from "firebase/auth";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
@@ -28,6 +30,25 @@ import {
 } from "lucide-react";
 
 type Step = "credentials" | "register";
+
+function getGoogleAuthErrorMessage(code: string) {
+  switch (code) {
+    case "auth/operation-not-allowed":
+      return "Google sign-in is disabled. Enable Google under Firebase Authentication > Sign-in method.";
+    case "auth/unauthorized-domain":
+      return "This domain is not authorized. Add localhost and your Vercel domain under Firebase Authentication > Settings > Authorized domains.";
+    case "auth/popup-closed-by-user":
+      return "Google sign-in was cancelled.";
+    case "auth/cancelled-popup-request":
+      return "Another Google sign-in window is already open.";
+    case "auth/account-exists-with-different-credential":
+      return "This email already uses another sign-in method. Sign in with that method first.";
+    case "auth/network-request-failed":
+      return "Google sign-in could not reach Firebase. Check your connection and Firebase configuration.";
+    default:
+      return code ? `Google sign-in failed (${code}).` : "Google sign-in failed.";
+  }
+}
 
 // --- Framer Motion Variants ---
 const pageVariants: Variants = {
@@ -122,6 +143,28 @@ export default function AuthPage() {
       });
   }, [finishProviderSignIn]);
 
+  useEffect(() => {
+    let active = true;
+
+    getRedirectResult(auth)
+      .then(async (result) => {
+        if (active && result) {
+          await finishProviderSignIn(result.user);
+        }
+      })
+      .catch((error: unknown) => {
+        if (!active) return;
+        const code = error && typeof error === "object" && "code" in error
+          ? String(error.code)
+          : "";
+        toast.error(getGoogleAuthErrorMessage(code));
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [finishProviderSignIn]);
+
   useEffect(() => () => {
     recaptchaRef.current?.clear();
   }, []);
@@ -129,10 +172,21 @@ export default function AuthPage() {
   const handleGoogleSignIn = async () => {
     setLoading(true);
     try {
-      const { user } = await signInWithPopup(auth, new GoogleAuthProvider());
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: "select_account" });
+      const { user } = await signInWithPopup(auth, provider);
       await finishProviderSignIn(user);
     } catch (error: unknown) {
-      toast.error(error instanceof Error ? error.message : "Google sign-in failed.");
+      const code = error && typeof error === "object" && "code" in error
+        ? String(error.code)
+        : "";
+
+      if (code === "auth/popup-blocked") {
+        await signInWithRedirect(auth, new GoogleAuthProvider());
+        return;
+      }
+
+      toast.error(getGoogleAuthErrorMessage(code));
     } finally {
       setLoading(false);
     }
