@@ -88,7 +88,7 @@ from the shared Firebase project.
    NEXT_PUBLIC_USE_FIREBASE_EMULATORS=true
    ```
 
-4. In one terminal, start the emulators:
+4. In one terminal, start the complete emulator stack:
 
    ```powershell
    npm run firebase:emulators
@@ -101,12 +101,18 @@ from the shared Firebase project.
    ```
 
 Open the Emulator UI at [http://127.0.0.1:4000](http://127.0.0.1:4000).
-The local endpoints are Auth `9099`, Firestore `8080`, and Storage `9199`.
+The local endpoints are Auth `9099`, Firestore `8080`, Storage `9199`, and
+Functions `5001`. The Functions build runs automatically before startup.
 To persist emulator data between runs, use `npm run firebase:emulators:data`.
 
 When testing the deployed or shared Firebase project, set
 `NEXT_PUBLIC_USE_FIREBASE_EMULATORS=false` and restart Next.js. Never commit
 `.env.local` or emulator export data.
+
+Local emulator data and the deployed Vercel/Firebase data are separate
+databases. An order created locally is visible only to local browser sessions
+connected to the same emulator process. An order created on Vercel is visible
+only through the deployed Firebase project.
 
 ---
 

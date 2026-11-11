@@ -3,13 +3,12 @@ import { useEffect, useState, useCallback } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { db } from '@/lib/firebase'
 import { initSocket, EVENTS } from '@/lib/socket'
-import { usePolling } from '@/hooks/usePolling'
 import { Order, ORDER_STATUS_LABELS, STATUS_COLORS } from '@/types'
 import { fmt, cn } from '@/lib/utils'
 import { Package, Loader2, ShoppingBag, Bike, ArrowRight, Clock, CheckCircle2, XCircle, MapPin, Truck } from 'lucide-react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
-import { collection, getDocs, query, where } from 'firebase/firestore'
+import { collection, onSnapshot, query, where } from 'firebase/firestore'
 
 const ACTIVE_STATUSES = ['PENDING', 'ACCEPTED', 'PAID', 'RIDER_LEFT', 'AT_SHOP', 'ITEM_PURCHASED', 'PHOTO_APPROVED', 'DELIVERING', 'ARRIVED']
 
@@ -54,18 +53,19 @@ export default function OrdersPage() {
   const [activeRole, setActiveRole] = useState(role)
   const { user, accessToken } = useAuthStore() as any
 
-  const fetchOrders = useCallback(async () => {
+  const fetchOrders = useCallback(() => {
     const userId = user?.uid || user?.id
     if (!userId) {
       setOrders([])
       setLoading(false)
-      return
+      return () => undefined
     }
 
-    try {
-      const field = activeRole === 'client' ? 'clientId' : 'riderId'
-      const snapshot = await getDocs(query(collection(db, 'orders'), where(field, '==', userId)))
-      const fetchedOrders = snapshot.docs.map(orderDoc => {
+    const field = activeRole === 'client' ? 'clientId' : 'riderId'
+    const unsubscribe = onSnapshot(
+      query(collection(db, 'orders'), where(field, '==', userId)),
+      snapshot => {
+        const fetchedOrders = snapshot.docs.map(orderDoc => {
         const data = orderDoc.data()
         const createdAt = data.createdAt?.toDate
           ? data.createdAt.toDate().toISOString()
@@ -77,19 +77,24 @@ export default function OrdersPage() {
         return { id: orderDoc.id, ...data, createdAt, updatedAt } as Order
       })
 
-      fetchedOrders.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
-      setOrders(fetchedOrders)
-    } catch (error) {
-      console.error('Orders fetch error:', error)
-      setOrders([])
-    } finally {
-      setLoading(false)
-    }
+        fetchedOrders.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt))
+        setOrders(fetchedOrders)
+        setLoading(false)
+      },
+      error => {
+        console.error('Orders listener error:', error)
+        setOrders([])
+        setLoading(false)
+      },
+    )
+
+    return unsubscribe
   }, [activeRole, user])
 
-  useEffect(() => { setLoading(true); fetchOrders() }, [fetchOrders])
-
-  usePolling(fetchOrders, 30_000, !loading)
+  useEffect(() => {
+    setLoading(true)
+    return fetchOrders()
+  }, [fetchOrders])
 
   useEffect(() => {
     if (!accessToken) return

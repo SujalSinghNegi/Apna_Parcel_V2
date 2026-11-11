@@ -6,8 +6,9 @@ import dynamic from 'next/dynamic'
 import Link from 'next/link'
 
 import { useAuthStore } from '@/store/auth'
-import { db } from '@/lib/firebase'
-import { doc, onSnapshot, updateDoc, collection, addDoc, query, orderBy, serverTimestamp } from 'firebase/firestore'
+import { db, functions } from '@/lib/firebase'
+import { doc, onSnapshot, collection, query, orderBy } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
 
 import { Order, Message, RiderLocation, ORDER_STATUS_LABELS } from '@/types'
 import { fmt, cn } from '@/lib/utils'
@@ -218,14 +219,35 @@ export default function OrderDetailPage() {
   const updateStatus = async (status: string, extraData = {}) => {
     setActionLoading(status.toLowerCase());
     try {
-      await updateDoc(doc(db, "orders", id), {
+      await httpsCallable(functions, 'transitionOrder')({
+        orderId: id,
         status,
-        updatedAt: serverTimestamp(),
-        ...extraData
+        extraData,
       });
       toast.success(`Order updated to ${status.replace(/_/g, ' ')}`);
     } catch (e: any) {
       toast.error(e.message || "Failed to update order");
+    } finally {
+      setActionLoading('');
+    }
+  };
+
+  const cancelOrder = async () => {
+    if (!cancelReason.trim()) {
+      toast.error('Please provide a cancellation reason.');
+      return;
+    }
+    setActionLoading('cancelled');
+    try {
+      await httpsCallable(functions, 'cancelOrder')({
+        orderId: id,
+        reason: cancelReason.trim(),
+      });
+      setShowCancel(false);
+      setCancelReason('');
+      toast.success('Order cancelled.');
+    } catch (e: any) {
+      toast.error(e.message || 'Unable to cancel order.');
     } finally {
       setActionLoading('');
     }
@@ -237,7 +259,7 @@ export default function OrderDetailPage() {
   const handlePay = async () => {
     setActionLoading('pay');
     
-    // MOCK PAYMENT FOR NOW
+    // Payment remains a demo action until Razorpay verification is implemented.
     setTimeout(async () => {
       await updateStatus('PAID');
       toast.success('Payment successful! ✅');
@@ -252,10 +274,9 @@ export default function OrderDetailPage() {
     
     setMsgText('');
     
-    await addDoc(collection(db, 'orders', id, 'messages'), {
+    await httpsCallable(functions, 'sendOrderMessage')({
+      orderId: id,
       content: text,
-      sender: { id: currentUserId, name: user?.name || "User", profilePhoto: user?.profilePhoto || '' },
-      createdAt: serverTimestamp()
     });
   };
 
@@ -290,6 +311,7 @@ export default function OrderDetailPage() {
       
       // Save URL to Firestore Chat Collection
       await addDoc(collection(db, 'orders', id, 'messages'), {
+        senderId: currentUserId,
         photoUrl: url,
         sender: { id: currentUserId, name: user.name, profilePhoto: user.profilePhoto || '' },
         createdAt: serverTimestamp()
@@ -338,11 +360,13 @@ export default function OrderDetailPage() {
       */
 
       // Update Firestore directly to move the order forward
-      await updateDoc(doc(db, "orders", id), {
+      await httpsCallable(functions, 'transitionOrder')({
+        orderId: id,
         status: 'ITEM_PURCHASED',
-        purchasedPhotoUrls: photoUrls,
-        actualPrice: parseFloat(actualPrice),
-        updatedAt: serverTimestamp()
+        extraData: {
+          purchasedPhotoUrls: photoUrls,
+          actualPrice: parseFloat(actualPrice),
+        },
       });
       
       setPhotoFiles([]); 
@@ -364,10 +388,15 @@ export default function OrderDetailPage() {
     if (code.length !== 4) { toast.error('Enter 4-digit OTP'); return; }
     
     setActionLoading('otp');
-    // Fake OTP verify for now, updates to Delivered
-    await updateStatus('DELIVERED');
-    toast.success('Order successfully Delivered! 🎉');
-    setShowOtp(false);
+    try {
+      await httpsCallable(functions, 'verifyDeliveryOtp')({ orderId: id, code });
+      toast.success('Order successfully Delivered! 🎉');
+      setShowOtp(false);
+    } catch (e: any) {
+      toast.error(e.message || 'Delivery verification failed.');
+    } finally {
+      setActionLoading('');
+    }
   };
 
   const handleOtpChange = (i: number, val: string) => {
@@ -905,8 +934,8 @@ export default function OrderDetailPage() {
           <Input label="Reason" placeholder="Why are you cancelling?" value={cancelReason} onChange={e => setCancelReason(e.target.value)} />
           <div className="flex gap-2">
             <Button variant="ghost" className="flex-1" onClick={() => setShowCancel(false)}>Back</Button>
-            <Button variant="danger" className="flex-1" loading={actionLoading === 'cancel'}
-              onClick={() => { updateStatus('CANCELLED', { cancelReason }); setShowCancel(false); }}>
+            <Button variant="danger" className="flex-1" loading={actionLoading === 'cancelled'}
+              onClick={cancelOrder}>
               Cancel Order
             </Button>
           </div>
@@ -942,6 +971,7 @@ export default function OrderDetailPage() {
           ) : (
             <>
               <p className="text-sm text-gray-500">Ask client for the 4-digit OTP</p>
+              <p className="text-xs text-gray-400">Demo OTP: 8421</p>
               <div className="flex gap-2 justify-center">
                 {otpInput.map((d, i) => (
                   <input key={i} ref={el => { otpRefs.current[i] = el }}
