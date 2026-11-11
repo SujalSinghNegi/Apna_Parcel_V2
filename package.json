@@ -6,7 +6,10 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint . --ext .js,.mjs,.ts,.tsx"
+    "lint": "eslint . --ext .js,.mjs,.ts,.tsx",
+    "functions:build": "npm run build --prefix functions",
+    "firebase:emulators": "npm run functions:build && firebase emulators:start --only auth,firestore,storage,functions",
+    "firebase:emulators:data": "npm run functions:build && firebase emulators:start --only auth,firestore,storage,functions --import=.firebase-data --export-on-exit=.firebase-data"
   },
   "dependencies": {
     "@radix-ui/react-avatar": "^1.0.4",

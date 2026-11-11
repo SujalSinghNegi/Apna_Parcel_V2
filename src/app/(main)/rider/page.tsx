@@ -1,8 +1,9 @@
 'use client'
 import { useEffect, useState, useMemo } from 'react'
 import { useAuthStore } from '@/store/auth'
-import { db } from '@/lib/firebase'
-import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp } from 'firebase/firestore'
+import { db, functions } from '@/lib/firebase'
+import { collection, query, where, onSnapshot } from 'firebase/firestore'
+import { httpsCallable } from 'firebase/functions'
 import { useRouter } from 'next/navigation'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
@@ -32,6 +33,7 @@ export default function RiderPage() {
   const [loading, setLoading] = useState(true)
   const [accepting, setAccepting] = useState('')
   const [showAccept, setShowAccept] = useState<Order | null>(null)
+  const [declineReason, setDeclineReason] = useState('')
   const [etaMinutes, setEtaMinutes] = useState('60')
   const [filters, setFilters] = useState({ maxWeightKg: '', maxPrice: '', shopMode: '' })
 
@@ -39,12 +41,14 @@ export default function RiderPage() {
   useEffect(() => {
     if (!user?.uid) return;
 
-    const ordersRef = collection(db, "orders");
-    // We only query the status from Firebase to prevent complex Index Requirements.
+    const ordersRef = collection(db, "orderDispatch");
     const q = query(ordersRef, where("status", "==", "PENDING"));
 
     const unsub = onSnapshot(q, (snapshot) => {
-      let fetchedOrders = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as any));
+      let fetchedOrders = snapshot.docs.map(dispatchDoc => ({
+        id: dispatchDoc.data().orderId || dispatchDoc.id,
+        ...dispatchDoc.data(),
+      } as any));
       
       // Sort newest first
       fetchedOrders.sort((a, b) => {
@@ -54,6 +58,11 @@ export default function RiderPage() {
       });
 
       setAllPendingOrders(fetchedOrders);
+      setLoading(false);
+    }, (error) => {
+      console.error('Rider dispatch listener error:', error);
+      toast.error('Unable to load available orders. Check Firebase emulators.');
+      setAllPendingOrders([]);
       setLoading(false);
     });
 
@@ -82,20 +91,9 @@ export default function RiderPage() {
     
     setAccepting(showAccept.id)
     try {
-      const orderRef = doc(db, "orders", showAccept.id);
-      
-      await updateDoc(orderRef, {
-        status: 'ACCEPTED',
-        riderId: user.uid,
-        rider: {
-          id: user.uid,
-          name: user.name,
-          profilePhoto: user.profilePhoto || '',
-          trustLevel: user.trustLevel || 1,
-          rating: user.rating || 0
-        },
-        declaredEtaMinutes: eta,
-        updatedAt: serverTimestamp()
+      await httpsCallable(functions, 'acceptOrder')({
+        orderId: showAccept.id,
+        etaMinutes: eta,
       });
 
       toast.success('Order accepted! Redirecting...');
@@ -106,6 +104,25 @@ export default function RiderPage() {
     } catch (e: any) { 
       toast.error(e.message || "Failed to accept order"); 
       setAccepting('');
+    }
+
+  }
+
+  const handleDecline = async () => {
+    if (!showAccept || !declineReason.trim()) {
+      toast.error('Please provide a decline reason.');
+      return;
+    }
+    try {
+      await httpsCallable(functions, 'declineOrder')({
+        orderId: showAccept.id,
+        reason: declineReason.trim(),
+      });
+      setShowAccept(null);
+      setDeclineReason('');
+      toast.success('Order declined.');
+    } catch (e: any) {
+      toast.error(e.message || 'Unable to decline order.');
     }
   }
 
@@ -324,8 +341,11 @@ export default function RiderPage() {
             </div>
             <Input label="Your ETA (minutes)" type="number" placeholder="60" value={etaMinutes}
               onChange={e => setEtaMinutes(e.target.value)} hint="How long until you deliver?" icon={<Clock className="w-4 h-4" />} />
+            <Input label="Decline reason (required only if declining)" placeholder="Why are you declining?" value={declineReason}
+              onChange={e => setDeclineReason(e.target.value)} />
             <div className="flex gap-2">
-              <Button variant="ghost" className="flex-1" onClick={() => setShowAccept(null)}>Cancel</Button>
+              <Button variant="ghost" className="flex-1" onClick={handleDecline}>Decline</Button>
+              <Button variant="ghost" className="flex-1" onClick={() => setShowAccept(null)}>Close</Button>
               <Button className="flex-1 shadow-lg shadow-brand/20" loading={!!accepting} onClick={handleAccept}>Accept Order</Button>
             </div>
           </div>

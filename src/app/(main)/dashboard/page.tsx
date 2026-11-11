@@ -2,7 +2,7 @@
 import { useEffect, useState } from 'react'
 import { useAuthStore } from '@/store/auth'
 import { db } from '@/lib/firebase'
-import { collection, query, where, orderBy, limit, getDocs } from 'firebase/firestore'
+import { collection, query, where, getDocs } from 'firebase/firestore'
 import { Card, CardContent } from '@/components/ui/Card'
 import { TrustBadge, StatusBadge } from '@/components/ui/Badge'
 import { Avatar } from '@/components/ui/Avatar'
@@ -115,12 +115,7 @@ useEffect(() => {
       try {
         // 1. Fetch User's Recent Orders from Firestore
         const ordersRef = collection(db, "orders");
-        const q = query(
-          ordersRef, 
-          where("clientId", "==", userId),
-          orderBy("createdAt", "desc"),
-          limit(3)
-        );
+        const q = query(ordersRef, where("clientId", "==", userId));
         
         const querySnapshot = await getDocs(q);
         const ordersData = querySnapshot.docs.map(doc => ({
@@ -129,8 +124,9 @@ useEffect(() => {
           // Safely handle Firestore timestamps
           createdAt: doc.data().createdAt?.toDate ? doc.data().createdAt.toDate().toISOString() : new Date().toISOString()
         }));
+        ordersData.sort((a, b) => Date.parse(b.createdAt) - Date.parse(a.createdAt));
         
-        setRecentOrders(ordersData);
+        setRecentOrders(ordersData.slice(0, 3));
 
         // Calculate simple stats based on user data
         setStats({

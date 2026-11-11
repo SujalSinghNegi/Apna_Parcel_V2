@@ -1,0 +1,59 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function self(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    function orderParticipant(data) {
+      return signedIn()
+        && (data.clientId == request.auth.uid || data.riderId == request.auth.uid);
+    }
+
+    match /users/{userId} {
+      allow read: if self(userId);
+      allow create: if self(userId)
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.role == 'CLIENT'
+        && request.resource.data.isAdmin == false;
+      allow update: if self(userId)
+        && request.resource.data.uid == resource.data.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'name', 'phone', 'collegeName', 'yearOfStudy', 'branch', 'address',
+          'occupation', 'designation', 'department', 'profilePhoto'
+        ]);
+      allow delete: if false;
+    }
+
+    match /orders/{orderId} {
+      allow create: if signedIn()
+        && request.resource.data.clientId == request.auth.uid
+        && request.resource.data.status == 'PENDING'
+        && !request.resource.data.keys().hasAny([
+          'riderId', 'rider', 'paymentStatus', 'deliveredAt', 'cancelledAt'
+        ]);
+      allow read: if signedIn()
+        && orderParticipant(resource.data);
+      allow update: if false;
+      allow delete: if false;
+
+      match /messages/{messageId} {
+        allow read: if orderParticipant(
+          get(/databases/$(database)/documents/orders/$(orderId)).data
+        );
+        allow create: if false;
+        allow update, delete: if false;
+      }
+    }
+
+    match /orderDispatch/{orderId} {
+      allow read: if signedIn() && resource.data.status == 'PENDING';
+      allow write: if false;
+    }
+  }
+}
