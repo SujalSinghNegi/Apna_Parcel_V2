@@ -55,5 +55,14 @@ service cloud.firestore {
       allow read: if signedIn() && resource.data.status == 'PENDING';
       allow write: if false;
     }
+
+    match /orderEvents/{eventId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    match /deliverySecrets/{orderId} {
+      allow read, write: if false;
+    }
   }
 }
