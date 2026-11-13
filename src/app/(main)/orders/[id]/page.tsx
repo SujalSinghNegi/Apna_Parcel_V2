@@ -135,7 +135,8 @@ export default function OrderDetailPage() {
   const [actionLoading, setActionLoading] = useState('')
   
   const [msgText, setMsgText] = useState('')
-  const [otpInput, setOtpInput] = useState(['', '', '', ''])
+  const [otpInput, setOtpInput] = useState(Array(6).fill(''))
+  const [deliveryOtp, setDeliveryOtp] = useState<string | null>(null)
   const [cancelReason, setCancelReason] = useState('')
   const [rejectReason, setRejectReason] = useState('')
   
@@ -178,11 +179,19 @@ export default function OrderDetailPage() {
       if (docSnap.exists()) {
         const data = docSnap.data();
         
+        const statusTimestamps = Object.fromEntries(
+          Object.entries(data.statusTimestamps || {}).map(([status, value]) => [
+            status,
+            (value as any)?.toDate ? (value as any).toDate().toISOString() : value,
+          ])
+        )
         setOrder({ 
           id: docSnap.id, 
           ...data,
           // Safely handle Firebase Timestamps
-          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString()
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : new Date().toISOString(),
+          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate().toISOString() : new Date().toISOString(),
+          statusTimestamps,
         } as any);
         
         setLoading(false);
@@ -385,13 +394,14 @@ export default function OrderDetailPage() {
 
   const handleOtpSubmit = async () => {
     const code = otpInput.join('');
-    if (code.length !== 4) { toast.error('Enter 4-digit OTP'); return; }
+    if (code.length !== 6) { toast.error('Enter 6-digit OTP'); return; }
     
     setActionLoading('otp');
     try {
       await httpsCallable(functions, 'verifyDeliveryOtp')({ orderId: id, code });
       toast.success('Order successfully Delivered! 🎉');
       setShowOtp(false);
+      setOtpInput(Array(6).fill(''));
     } catch (e: any) {
       toast.error(e.message || 'Delivery verification failed.');
     } finally {
@@ -402,7 +412,24 @@ export default function OrderDetailPage() {
   const handleOtpChange = (i: number, val: string) => {
     const v = val.replace(/\D/g, '').slice(-1);
     const next = [...otpInput]; next[i] = v; setOtpInput(next);
-    if (v && i < 3) otpRefs.current[i + 1]?.focus();
+    if (v && i < 5) otpRefs.current[i + 1]?.focus();
+  };
+
+  const handleShowOtp = async () => {
+    if (isClient) {
+      setActionLoading('otp-view');
+      try {
+        const result = await httpsCallable<{ orderId: string }, { code: string }>(functions, 'getDeliveryOtp')({ orderId: id });
+        setDeliveryOtp(result.data.code);
+        setShowOtp(true);
+      } catch (e: any) {
+        toast.error(e.message || 'Unable to load the delivery OTP.');
+      } finally {
+        setActionLoading('');
+      }
+      return;
+    }
+    setShowOtp(true);
   };
 
 
@@ -577,6 +604,11 @@ export default function OrderDetailPage() {
                       <p className={cn('text-sm font-bold', current ? 'text-navy' : done ? 'text-green-700' : 'text-gray-400')}>
                         {step.label}
                       </p>
+                      {order.statusTimestamps?.[step.key as keyof typeof order.statusTimestamps] && (
+                        <p className="text-[11px] text-gray-400 mt-0.5">
+                          {fmt.datetime(order.statusTimestamps[step.key as keyof typeof order.statusTimestamps]!)}
+                        </p>
+                      )}
                     </div>
                   </div>
                 )
@@ -746,16 +778,25 @@ export default function OrderDetailPage() {
                       <p className="text-xs text-gray-400">Share OTP after receiving your item</p>
                     </div>
                   </div>
-                  <Button className="w-full" size="lg" onClick={() => setShowOtp(true)}>
+                  <Button className="w-full" size="lg" onClick={handleShowOtp} loading={actionLoading === 'otp-view'}>
                     🔑 View Delivery OTP
                   </Button>
                 </div>
               )}
 
               {order.status === 'DELIVERED' && (
-                <div className="bg-green-50 border border-green-200 rounded-2xl p-4 flex items-center gap-3">
-                  <CheckCircle2 className="w-5 h-5 text-green-600 shrink-0" />
-                  <p className="text-sm font-bold text-green-700">Order successfully delivered!</p>
+                <div className="bg-green-50 border border-green-200 rounded-2xl p-5 space-y-4">
+                  <div className="flex items-center gap-3">
+                    <CheckCircle2 className="w-7 h-7 text-green-600 shrink-0" />
+                    <div>
+                      <p className="font-extrabold text-green-700">Delivery completed successfully!</p>
+                      <p className="text-xs text-green-600">Thank you for using Apna Parcel.</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button className="flex-1" onClick={() => router.push('/dashboard')}>Home</Button>
+                    <Button variant="ghost" className="flex-1" onClick={() => router.back()}>Next order</Button>
+                  </div>
                 </div>
               )}
             </>
@@ -843,7 +884,7 @@ export default function OrderDetailPage() {
               )}
 
               {order.status === 'ARRIVED' && (
-                <Button className="w-full" size="lg" onClick={() => setShowOtp(true)}>
+                <Button className="w-full" size="lg" onClick={handleShowOtp}>
                   🔑 Enter Client OTP
                 </Button>
               )}
@@ -963,15 +1004,14 @@ export default function OrderDetailPage() {
               <p className="text-sm text-gray-500">Share only <strong>after</strong> receiving your item</p>
               <div className="bg-green-50 border-2 border-dashed border-green-300 rounded-2xl py-6 px-4">
                 <span className="text-4xl font-extrabold tracking-[12px] text-green-600">
-                  {/* Fake OTP for testing without backend text triggers */}
-                  8421
+                  {deliveryOtp || '------'}
                 </span>
               </div>
             </>
           ) : (
             <>
-              <p className="text-sm text-gray-500">Ask client for the 4-digit OTP</p>
-              <p className="text-xs text-gray-400">Demo OTP: 8421</p>
+              <p className="text-sm text-gray-500">Ask the client for the 6-digit OTP</p>
+              <p className="text-xs text-gray-400">The code is checked securely by the server and can only be used once.</p>
               <div className="flex gap-2 justify-center">
                 {otpInput.map((d, i) => (
                   <input key={i} ref={el => { otpRefs.current[i] = el }}

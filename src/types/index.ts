@@ -49,7 +49,8 @@ export interface Order {
   declaredEtaMinutes?: number; riderAcceptedAt?: string; riderLeftAt?: string;
   arrivedAt?: string; deliveredAt?: string; cancelledAt?: string;
   cancelReason?: string; cancelledBy?: string; travelCompensation?: number;
-  deliveryOtp?: string; otpExpiresAt?: string; createdAt: string; updatedAt: string;
+  otpVerifiedAt?: string; statusTimestamps?: Partial<Record<OrderStatus, string>>;
+  createdAt: string; updatedAt: string;
   client?: OrderUser; rider?: OrderUser;
   payment?: { status: PaymentStatus; totalAmount: number; stripePaymentIntentId?: string };
 }

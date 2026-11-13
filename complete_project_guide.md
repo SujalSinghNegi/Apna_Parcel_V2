@@ -747,8 +747,8 @@ Target date: **2026-11-12**
 
 ### Priority 1 — Order reliability and audit history
 
-- [ ] Add server timestamps for every valid order transition.
-- [ ] Add immutable `orderEvents` records with actor, previous status, next status,
+- [x] Add server timestamps for every valid order transition.
+- [x] Add immutable `orderEvents` records with actor, previous status, next status,
   reason, and timestamp.
 - [ ] Verify that client and rider see the same status in two browser sessions.
 - [ ] Verify that a second rider cannot accept an accepted order.
@@ -756,11 +756,26 @@ Target date: **2026-11-12**
 
 ### Priority 2 — Successful delivery UX
 
-- [ ] Replace the raw delivered state with a success screen.
-- [ ] Add **Home** navigation.
-- [ ] Add **Exit/Close** navigation.
+- [x] Replace the raw delivered state with a success screen.
+- [x] Add **Home** navigation.
+- [x] Add **Exit/Close** navigation.
 - [ ] Add rating entry point after delivery.
-- [ ] Make OTP completion idempotent and prevent duplicate submissions.
+- [x] Make OTP completion idempotent and prevent duplicate submissions.
+
+### Completed security work — delivery OTP
+
+- The OTP is generated server-side with a cryptographically secure random number
+  generator and is six digits long.
+- The OTP is never stored on the order document, never exposed to riders, and is
+  returned only to the authenticated client through the `getDeliveryOtp` callable
+  while the order is at the `ARRIVED` step.
+- Verification hashes the submitted code with a per-order random salt and uses a
+  timing-safe comparison. Five failed attempts lock verification for 15 minutes.
+- Successful verification removes the server-side display code, records the
+  verification timestamp, creates the `DELIVERED` event, and is idempotent for
+  retried requests.
+- Before production SMS/WhatsApp delivery is added, keep the OTP in a server-side
+  secret store or provider-managed delivery channel rather than logging it.
 
 ### Priority 3 — Assignment policy
 
